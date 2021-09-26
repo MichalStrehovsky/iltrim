@@ -110,6 +110,8 @@
     <SubsetName Include="NativeAot.ObjWriter" Description="Object writer for the CoreCLR native AOT compiler." />
     <SubsetName Include="NativeAot.Packages" Description="The CoreCLR native AOT compiler." />
 
+    <SubsetName Include="ILTrim" Desciption="ILTrim hackathon" />
+
     <!-- CoreClr -->
     <SubsetName Include="Clr" Description="The CoreCLR runtime, LinuxDac, CoreLib (+ native), tools and packages." />
     <SubsetName Include="Clr.DacTools" Description="Managed tools that support building a runtime that supports debugging (such as DacTableGen)." />
@@ -284,6 +286,11 @@
     <ProjectToBuild Include="$(CoreClrProjectRoot)tools\aot\ILCompiler\repro\repro.csproj" Category="clr" />
     <ProjectToBuild Include="$(CoreClrProjectRoot)nativeaot\BuildIntegration\BuildIntegration.proj" Category="clr" />
   </ItemGroup>
+
+  <ItemGroup Condition="$(_subset.Contains('+iltrim+'))">
+    <ProjectToBuild Include="$(CoreClrProjectRoot)tools\ILTrim\ILTrim.csproj" Category="clr" />
+  </ItemGroup>
+
 
   <!-- Mono sets -->
   <ItemGroup Condition="$(_subset.Contains('+mono.llvm+')) or $(_subset.Contains('+mono.aotcross+')) or '$(TargetOS)' == 'iOS' or '$(TargetOS)' == 'iOSSimulator' or '$(TargetOS)' == 'tvOS' or '$(TargetOS)' == 'tvOSSimulator' or '$(TargetOS)' == 'MacCatalyst' or '$(TargetOS)' == 'Android' or '$(TargetOS)' == 'Browser'">
