@@ -32,6 +32,11 @@ namespace ILTrim.DependencyAnalysis
             {
                 yield return new DependencyListEntry(factory.TypeDefinition(_module, typeDef.GetDeclaringType()), "Declaring type of a type");
             }
+
+            foreach (TypeDefinitionHandle nestedTypeDefHandle in typeDef.GetNestedTypes())
+            {
+                yield return new DependencyListEntry(factory.TypeDefinition(_module, nestedTypeDefHandle), "Nested type of a type");
+            }
         }
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)

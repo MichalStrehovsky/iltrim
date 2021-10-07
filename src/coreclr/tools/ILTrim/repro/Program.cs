@@ -8,19 +8,28 @@ interface IFirstType
     static void Method() { }
 }
 
-interface IProgram
+interface IDeclaringType
 {
-    static int Field;
-
-    static int FirstMethod() => 300;
-
-    static int Main()
+    interface IProgram
     {
-        return 42;
-    }
+        static int Field;
 
-    static void LastMethod(int someParameter) { }
+        static int FirstMethod() => 300;
+
+        static int Main()
+        {
+            return 42;
+        }
+
+        static void LastMethod(int someParameter) { }
+
+        interface INestedType
+        {
+            static int AnotherField;
+        }
+    }
 }
+
 
 interface IAnortherType
 {
