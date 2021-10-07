@@ -8,7 +8,7 @@ using System.Reflection.Metadata.Ecma335;
 namespace ILTrim.DependencyAnalysis
 {
     /// <summary>
-    /// Represents an entry in the Assembly metadata table.
+    /// Represents an entry in the Assembly Reference metadata table.
     /// </summary>
     public sealed class AssemblyReferenceNode : TokenBasedNode
     {

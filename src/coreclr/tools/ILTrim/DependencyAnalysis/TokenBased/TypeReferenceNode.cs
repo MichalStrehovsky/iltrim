@@ -10,7 +10,7 @@ using Debug = System.Diagnostics.Debug;
 namespace ILTrim.DependencyAnalysis
 {
     /// <summary>
-    /// Represents an entry in the Module metadata table.
+    /// Represents an entry in the Type Reference metadata table.
     /// </summary>
     public sealed class TypeReferenceNode : TokenBasedNode
     {
