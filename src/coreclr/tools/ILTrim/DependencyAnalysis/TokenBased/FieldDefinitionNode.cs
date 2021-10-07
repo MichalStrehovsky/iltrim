@@ -21,8 +21,8 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            FieldDefinition methodDef = _module.MetadataReader.GetFieldDefinition(Handle);
-            TypeDefinitionHandle declaringType = methodDef.GetDeclaringType();
+            FieldDefinition fieldDef = _module.MetadataReader.GetFieldDefinition(Handle);
+            TypeDefinitionHandle declaringType = fieldDef.GetDeclaringType();
 
             // TODO: Check if FieldDefinition has other references that needed to be added
             yield return new DependencyListEntry(factory.TypeDefinition(_module, declaringType), "Field owning type");

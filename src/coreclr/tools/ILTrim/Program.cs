@@ -26,7 +26,6 @@ namespace ILTrim
             var analyzer = new DependencyAnalyzer<NoLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null);
             MethodDefinitionHandle entrypointToken = (MethodDefinitionHandle)MetadataTokens.Handle(pe.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
             analyzer.AddRoot(factory.MethodDefinition(module, entrypointToken), "Entrypoint");
-            analyzer.AddRoot(factory.GetNodeForToken(module, MetadataTokens.FieldDefinitionHandle(1)), "First field");
 
             analyzer.ComputeMarkedNodes();
 
