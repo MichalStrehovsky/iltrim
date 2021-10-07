@@ -28,14 +28,9 @@ namespace ILTrim.DependencyAnalysis
                 yield return new(factory.GetNodeForToken(_module, typeDef.BaseType), "Base type of a type");
             }
 
-            if (!typeDef.GetDeclaringType().IsNil)
+            if (typeDef.IsNested)
             {
                 yield return new DependencyListEntry(factory.TypeDefinition(_module, typeDef.GetDeclaringType()), "Declaring type of a type");
-            }
-
-            foreach (TypeDefinitionHandle nestedTypeDefHandle in typeDef.GetNestedTypes())
-            {
-                yield return new DependencyListEntry(factory.TypeDefinition(_module, nestedTypeDefHandle), "Nested type of a type");
             }
         }
 
@@ -46,8 +41,8 @@ namespace ILTrim.DependencyAnalysis
 
             var builder = writeContext.MetadataBuilder;
 
-            if (!typeDef.GetDeclaringType().IsNil)
-                builder.AddNestedType(Handle, typeDef.GetDeclaringType());
+            if (typeDef.IsNested)
+                builder.AddNestedType((TypeDefinitionHandle)writeContext.TokenMap.MapToken(Handle), (TypeDefinitionHandle)writeContext.TokenMap.MapToken(typeDef.GetDeclaringType()));
 
             return builder.AddTypeDefinition(typeDef.Attributes,
                 builder.GetOrAddString(reader.GetString(typeDef.Namespace)),
