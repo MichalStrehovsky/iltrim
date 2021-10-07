@@ -22,7 +22,6 @@ interface IProgram
     static void LastMethod(int someParameter) { }
 }
 
-
 interface IAnortherType
 {
     static void Method() { }
