@@ -1,24 +1,29 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
 
 #pragma warning disable 649
 
-interface IFirstType
+class FirstType
 {
     static void Method() { }
 }
 
-interface IProgram
+[Kept]
+class Program
 {
     static int Field;
 
     static int FirstMethod() => 300;
+
     static int Main()
     {
         return 42;
     }
+
     static void LastMethod(int someParameter) { }
 }
 
-interface IAnotherType
+class AnotherType
 {
     static void Method() { }
 }
