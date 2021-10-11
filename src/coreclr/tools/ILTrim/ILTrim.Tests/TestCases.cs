@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
+using Internal.IL;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using Xunit;
@@ -58,17 +61,32 @@ namespace ILTrim.Tests
                 {
                     // TODO: Handle overloads
                     string memberName = untrimmedMember.Name;
-                    MemberInfo? trimmedMember = trimmedType.GetMember(memberName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance).FirstOrDefault();
-                    if (HasKeptAttribute(untrimmedMember))
+                    MemberInfo trimmedMember;
                     {
-                        Assert.True(trimmedMember is not null, $"Member '{memberName}' was not kept.");
+                        MemberInfo? trimmedMemberCandidate = trimmedType.GetMember(memberName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance).FirstOrDefault();
+                        if (HasKeptAttribute(untrimmedMember))
+                        {
+                            Assert.True(trimmedMemberCandidate is not null, $"Member '{memberName}' was not kept.");
+                            trimmedMember = trimmedMemberCandidate!;
+                        }
+                        else
+                        {
+                            // This causes trouble since we're also trimming the CoreLib stubs
+                            // Once we switch tests over the real corlib and we won't validate corlib,
+                            // then we should reenable this.
+                            //Assert.True(trimmedMember is null, $"Member '{memberName}' was not removed.");
+                            continue;
+                        }
                     }
-                    else
+
+                    switch (trimmedMember)
                     {
-                        // This causes trouble since we're also trimming the CoreLib stubs
-                        // Once we switch tests over the real corlib and we won't validate corlib,
-                        // then we should reenable this.
-                        //Assert.True(trimmedMember is null, $"Member '{memberName}' was not removed.");
+                        case FieldInfo trimmedField:
+                            break;
+
+                        case MethodInfo trimmedMethod:
+                            ValidateMethod((MethodInfo)untrimmedMember, trimmedMethod);
+                            break;
                     }
                 }
             }
@@ -79,6 +97,65 @@ namespace ILTrim.Tests
                 var loadContext = new MetadataLoadContext(resolver, "ILTrim.Tests.Cases");
 
                 return Assert.Single(loadContext.GetAssemblies());
+            }
+        }
+
+        private static void ValidateMethod(MethodInfo untrimmedMethod, MethodInfo trimmedMethod)
+        {
+            byte[]? untrimmedIL = untrimmedMethod.GetMethodBody()?.GetILAsByteArray();
+            byte[]? trimmedIL = trimmedMethod.GetMethodBody()?.GetILAsByteArray();
+
+            if (untrimmedIL == null)
+            {
+                Assert.Null(trimmedIL);
+            }
+            else
+            {
+                Assert.NotNull(trimmedIL);
+                Assert.Equal(untrimmedIL.Length, trimmedIL!.Length);
+
+                ILReader untrimmedReader = new ILReader(untrimmedIL);
+                ILReader trimmedReader = new ILReader(trimmedIL);
+                while (untrimmedReader.HasNext)
+                {
+                    Assert.True(trimmedReader.HasNext);
+
+                    ILOpcode untrimmedOpcode = untrimmedReader.ReadILOpcode();
+                    ILOpcode trimmedOpcode = trimmedReader.ReadILOpcode();
+                    Assert.True(untrimmedOpcode == trimmedOpcode, $"Expected {untrimmedOpcode}, but found {trimmedOpcode} in {untrimmedMethod.DeclaringType?.FullName}.{untrimmedMethod.Name}");
+                    switch (untrimmedOpcode)
+                    {
+                        case ILOpcode.sizeof_:
+                        case ILOpcode.newarr:
+                        case ILOpcode.stsfld:
+                        case ILOpcode.ldsfld:
+                        case ILOpcode.ldsflda:
+                        case ILOpcode.stfld:
+                        case ILOpcode.ldfld:
+                        case ILOpcode.ldflda:
+                        case ILOpcode.call:
+                        case ILOpcode.newobj:
+                        case ILOpcode.ldtoken:
+                        case ILOpcode.ldftn:
+                        case ILOpcode.initobj:
+                        case ILOpcode.stelem:
+                        case ILOpcode.ldelem:
+                        case ILOpcode.box:
+                        case ILOpcode.unbox_any:
+                            int untrimmedToken = untrimmedReader.ReadILToken();
+                            int trimmedToken = trimmedReader.ReadILToken();
+                            Assert.Equal(MetadataTokens.EntityHandle(untrimmedToken).Kind, MetadataTokens.EntityHandle(trimmedToken).Kind);
+                            // TODO: Figure out how to compare the tokens?
+                            // MetadataLoadContext doesn't support token resolution (Module.ResolveType ...).
+                            // So we would probably have to load the assembly via a different method.
+                            break;
+
+                        default:
+                            untrimmedReader.Skip(untrimmedOpcode);
+                            trimmedReader.Skip(trimmedOpcode);
+                            break;
+                    }
+                }    
             }
         }
 
