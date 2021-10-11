@@ -1,7 +1,9 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
@@ -23,9 +25,6 @@ namespace ILTrim.DependencyAnalysis
             _module = module;
             _methodHandle = methodHandle;
         }
-
-        private DependencyListEntry GetDependencyForToken(NodeFactory factory, int token, string reason)
-            => new DependencyListEntry(factory.GetNodeForToken(_module, MetadataTokens.EntityHandle(token)), reason);
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
@@ -66,7 +65,10 @@ namespace ILTrim.DependencyAnalysis
                         case ILOpcode.ldelem:
                         case ILOpcode.box:
                         case ILOpcode.unbox_any:
-                            yield return GetDependencyForToken(factory, ilReader.ReadILToken(), $"Instruction {opcode.ToString()} operand");
+                            yield return new DependencyListEntry(factory.GetNodeForToken(
+                                _module,
+                                MetadataTokens.EntityHandle(ilReader.ReadILToken())),
+                                $"Instruction {opcode.ToString()} operand");
                             break;
 
                         default:
@@ -87,22 +89,55 @@ namespace ILTrim.DependencyAnalysis
 
             MethodBodyBlock bodyBlock = _module.PEReader.GetMethodBody(rva);
 
-            // TODO: need to rewrite token references in the method body and exception regions
+            // TODO: need to rewrite token references in the exception regions
+            // This would need ControlFlowBuilder and setting up labels and such.
+            // All doable, just more code.
 
             byte[] bodyBytes = bodyBlock.GetILBytes();
+            BlobBuilder outputBodyBuilder = new(); // TODO: Cache this?
+            InstructionEncoder instructionEncoder = new(outputBodyBuilder);
+            ILReader ilReader = new ILReader(bodyBytes);
+            while (ilReader.HasNext)
+            {
+                int offset = ilReader.Offset;
+                ILOpcode opcode = ilReader.ReadILOpcode();
 
-            writeContext.ILStream.Align(4);
+                switch (opcode)
+                {
+                    case ILOpcode.sizeof_:
+                    case ILOpcode.newarr:
+                    case ILOpcode.stsfld:
+                    case ILOpcode.ldsfld:
+                    case ILOpcode.ldsflda:
+                    case ILOpcode.stfld:
+                    case ILOpcode.ldfld:
+                    case ILOpcode.ldflda:
+                    case ILOpcode.call:
+                    case ILOpcode.newobj:
+                    case ILOpcode.ldtoken:
+                    case ILOpcode.ldftn:
+                    case ILOpcode.initobj:
+                    case ILOpcode.stelem:
+                    case ILOpcode.ldelem:
+                    case ILOpcode.box:
+                    case ILOpcode.unbox_any:
+                        instructionEncoder.OpCode((ILOpCode)(int)opcode);
+                        instructionEncoder.Token(MetadataTokens.GetToken(writeContext.TokenMap.MapToken(MetadataTokens.EntityHandle(ilReader.ReadILToken()))));
+                        break;
+
+                    default:
+                        instructionEncoder.CodeBuilder.WriteBytes(bodyBytes, offset, ILOpcodeHelper.GetSize(opcode));
+                        ilReader.Skip(opcode);
+                        break;
+                }
+            }
+
             MethodBodyStreamEncoder bodyStreamEncoder = new MethodBodyStreamEncoder(writeContext.ILStream);
-            var bodyEncoder = bodyStreamEncoder.AddMethodBody(
-                bodyBytes.Length,
+            return bodyStreamEncoder.AddMethodBody(
+                instructionEncoder,
                 bodyBlock.MaxStack,
-                exceptionRegionCount: 0,
-                hasSmallExceptionRegions: false,
                 (StandaloneSignatureHandle)writeContext.TokenMap.MapToken(bodyBlock.LocalSignature),
                 bodyBlock.LocalVariablesInitialized ? MethodBodyAttributes.InitLocals : MethodBodyAttributes.None);
-            new BlobWriter(bodyEncoder.Instructions).WriteBytes(bodyBytes);
-
-            return bodyEncoder.Offset;
         }
 
         protected override string GetName(NodeFactory factory)

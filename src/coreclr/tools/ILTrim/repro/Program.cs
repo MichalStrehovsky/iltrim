@@ -13,7 +13,7 @@ interface IProgram
     static int FirstMethod() => 300;
     static int Main()
     {
-        return 42;
+        return FirstMethod();
     }
     static void LastMethod(int someParameter) { }
 }
