@@ -6,6 +6,7 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
 using ILCompiler.DependencyAnalysisFramework;
+using Internal.IL;
 
 namespace ILTrim.DependencyAnalysis
 {
@@ -23,6 +24,9 @@ namespace ILTrim.DependencyAnalysis
             _methodHandle = methodHandle;
         }
 
+        private DependencyListEntry GetDependencyForToken(NodeFactory factory, int token, string reason)
+            => new DependencyListEntry(factory.GetNodeForToken(_module, MetadataTokens.EntityHandle(token)), reason);
+
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
             // RVA = 0 is an extern method, such as a DllImport
@@ -35,7 +39,42 @@ namespace ILTrim.DependencyAnalysis
             if (!bodyBlock.LocalSignature.IsNil)
                 yield return new DependencyListEntry(factory.StandaloneSignature(_module, bodyBlock.LocalSignature), "Signatures of local variables");
 
-            // TODO: we'll need to scan the method body and figure out what it depends on
+            if (bodyBlock.GetILBytes() is { } bodyBytes)
+            {
+                ILReader ilReader = new(bodyBytes);
+
+                while (ilReader.HasNext)
+                {
+                    ILOpcode opcode = ilReader.ReadILOpcode();
+
+                    switch (opcode)
+                    {
+                        case ILOpcode.sizeof_:
+                        case ILOpcode.newarr:
+                        case ILOpcode.stsfld:
+                        case ILOpcode.ldsfld:
+                        case ILOpcode.ldsflda:
+                        case ILOpcode.stfld:
+                        case ILOpcode.ldfld:
+                        case ILOpcode.ldflda:
+                        case ILOpcode.call:
+                        case ILOpcode.newobj:
+                        case ILOpcode.ldtoken:
+                        case ILOpcode.ldftn:
+                        case ILOpcode.initobj:
+                        case ILOpcode.stelem:
+                        case ILOpcode.ldelem:
+                        case ILOpcode.box:
+                        case ILOpcode.unbox_any:
+                            yield return GetDependencyForToken(factory, ilReader.ReadILToken(), $"Instruction {opcode.ToString()} operand");
+                            break;
+
+                        default:
+                            ilReader.Skip(opcode);
+                            break;
+                    }
+                }
+            }
         }
 
         public int Write(ModuleWritingContext writeContext)
@@ -52,6 +91,7 @@ namespace ILTrim.DependencyAnalysis
 
             byte[] bodyBytes = bodyBlock.GetILBytes();
 
+            writeContext.ILStream.Align(4);
             MethodBodyStreamEncoder bodyStreamEncoder = new MethodBodyStreamEncoder(writeContext.ILStream);
             var bodyEncoder = bodyStreamEncoder.AddMethodBody(
                 bodyBytes.Length,

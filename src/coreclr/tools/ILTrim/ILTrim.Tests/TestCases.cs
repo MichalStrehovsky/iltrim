@@ -28,12 +28,48 @@ namespace ILTrim.Tests
             var untrimmed = LoadTestAssembly(testAssembly);
             var trimmed = LoadTestAssembly(trimmedStream.GetBuffer());
 
-            foreach (var t in untrimmed.GetTypes())
+            foreach (var untrimmedType in untrimmed.GetTypes())
             {
-                if (HasKeptAttribute(t.GetCustomAttributesData()))
+                Type trimmedType;
+                string typeName = untrimmedType.FullName!;
                 {
-                    string name = t.FullName!;
-                    Assert.True(trimmed.GetType(name) is not null, $"could not find Kept type '{name}'");
+                    Type? trimmedTypeCandidate = trimmed.GetType(typeName);
+                    if (HasKeptAttribute(untrimmedType))
+                    {
+                        if (trimmedTypeCandidate is null)
+                        {
+                            Assert.True(false, $"Type '{typeName}' was not kept.");
+                            continue;
+                        }
+
+                        trimmedType = trimmedTypeCandidate!;
+                    }
+                    else
+                    {
+                        // This causes trouble since we're also trimming the CoreLib stubs
+                        // Once we switch tests over the real corlib and we won't validate corlib,
+                        // then we should reenable this.
+                        //Assert.True(trimmedTypeCandidate is null, $"Type '{typeName}' was not removed.");
+                        continue;
+                    }
+                }
+
+                foreach (var untrimmedMember in untrimmedType.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance))
+                {
+                    // TODO: Handle overloads
+                    string memberName = untrimmedMember.Name;
+                    MemberInfo? trimmedMember = trimmedType.GetMember(memberName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance).FirstOrDefault();
+                    if (HasKeptAttribute(untrimmedMember))
+                    {
+                        Assert.True(trimmedMember is not null, $"Member '{memberName}' was not kept.");
+                    }
+                    else
+                    {
+                        // This causes trouble since we're also trimming the CoreLib stubs
+                        // Once we switch tests over the real corlib and we won't validate corlib,
+                        // then we should reenable this.
+                        //Assert.True(trimmedMember is null, $"Member '{memberName}' was not removed.");
+                    }
                 }
             }
 
@@ -59,6 +95,8 @@ namespace ILTrim.Tests
                 return context.LoadFromByteArray(_assembly);
             }
         }
+
+        private static bool HasKeptAttribute(MemberInfo memberInfo) => HasKeptAttribute(memberInfo.GetCustomAttributesData());
 
         private static bool HasKeptAttribute(IEnumerable<CustomAttributeData> data)
         {
