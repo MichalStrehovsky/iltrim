@@ -18,7 +18,10 @@ namespace Mono.Linker.Tests.TestCases
             TestCase testCase = TestDatabase.GetTestCaseFromName(testName) ?? throw new InvalidOperationException ($"Unknown test {testName}");
 			var runner = new TestRunner (new ObjectFactory ());
 			var linkedResult = runner.Run (testCase);
-			//new ResultChecker ().Check (linkedResult);
+            if (linkedResult != null)
+            {
+                new ResultChecker().Check(linkedResult);
+            }
 		}
 	}
 }
