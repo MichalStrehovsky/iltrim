@@ -158,6 +158,15 @@ namespace ILTrim.DependencyAnalysis
                         outputBodyBuilder.WriteInt32(MetadataTokens.GetToken(writeContext.TokenMap.MapToken(MetadataTokens.EntityHandle(ilReader.ReadILToken()))));
                         break;
 
+                    case ILOpcode.ldstr:
+                        outputBodyBuilder.WriteByte((byte)opcode);
+                        outputBodyBuilder.WriteInt32(
+                            MetadataTokens.GetToken(
+                                writeContext.MetadataBuilder.GetOrAddUserString(
+                                    _module.MetadataReader.GetUserString(
+                                        MetadataTokens.UserStringHandle(ilReader.ReadILToken())))));
+                        break;
+
                     default:
                         outputBodyBuilder.WriteBytes(bodyBytes, offset, ILOpcodeHelper.GetSize(opcode));
                         ilReader.Skip(opcode);
