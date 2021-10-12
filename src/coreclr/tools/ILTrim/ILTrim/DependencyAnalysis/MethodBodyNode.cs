@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -38,43 +39,53 @@ namespace ILTrim.DependencyAnalysis
             if (!bodyBlock.LocalSignature.IsNil)
                 yield return new DependencyListEntry(factory.StandaloneSignature(_module, bodyBlock.LocalSignature), "Signatures of local variables");
 
-            if (bodyBlock.GetILBytes() is { } bodyBytes)
+            ILReader ilReader = new(bodyBlock.GetILBytes());
+            while (ilReader.HasNext)
             {
-                ILReader ilReader = new(bodyBytes);
+                ILOpcode opcode = ilReader.ReadILOpcode();
 
-                while (ilReader.HasNext)
+                switch (opcode)
                 {
-                    ILOpcode opcode = ilReader.ReadILOpcode();
+                    case ILOpcode.sizeof_:
+                    case ILOpcode.newarr:
+                    case ILOpcode.stsfld:
+                    case ILOpcode.ldsfld:
+                    case ILOpcode.ldsflda:
+                    case ILOpcode.stfld:
+                    case ILOpcode.ldfld:
+                    case ILOpcode.ldflda:
+                    case ILOpcode.call:
+                    case ILOpcode.calli:
+                    case ILOpcode.callvirt:
+                    case ILOpcode.newobj:
+                    case ILOpcode.ldtoken:
+                    case ILOpcode.ldftn:
+                    case ILOpcode.ldvirtftn:
+                    case ILOpcode.initobj:
+                    case ILOpcode.stelem:
+                    case ILOpcode.ldelem:
+                    case ILOpcode.ldelema:
+                    case ILOpcode.box:
+                    case ILOpcode.unbox:
+                    case ILOpcode.unbox_any:
+                    case ILOpcode.jmp:
+                    case ILOpcode.cpobj:
+                    case ILOpcode.ldobj:
+                    case ILOpcode.castclass:
+                    case ILOpcode.isinst:
+                    case ILOpcode.stobj:
+                    case ILOpcode.refanyval:
+                    case ILOpcode.mkrefany:
+                    case ILOpcode.constrained:
+                        yield return new DependencyListEntry(factory.GetNodeForToken(
+                            _module,
+                            MetadataTokens.EntityHandle(ilReader.ReadILToken())),
+                            $"Instruction {opcode.ToString()} operand");
+                        break;
 
-                    switch (opcode)
-                    {
-                        case ILOpcode.sizeof_:
-                        case ILOpcode.newarr:
-                        case ILOpcode.stsfld:
-                        case ILOpcode.ldsfld:
-                        case ILOpcode.ldsflda:
-                        case ILOpcode.stfld:
-                        case ILOpcode.ldfld:
-                        case ILOpcode.ldflda:
-                        case ILOpcode.call:
-                        case ILOpcode.newobj:
-                        case ILOpcode.ldtoken:
-                        case ILOpcode.ldftn:
-                        case ILOpcode.initobj:
-                        case ILOpcode.stelem:
-                        case ILOpcode.ldelem:
-                        case ILOpcode.box:
-                        case ILOpcode.unbox_any:
-                            yield return new DependencyListEntry(factory.GetNodeForToken(
-                                _module,
-                                MetadataTokens.EntityHandle(ilReader.ReadILToken())),
-                                $"Instruction {opcode.ToString()} operand");
-                            break;
-
-                        default:
-                            ilReader.Skip(opcode);
-                            break;
-                    }
+                    default:
+                        ilReader.Skip(opcode);
+                        break;
                 }
             }
         }
@@ -93,9 +104,8 @@ namespace ILTrim.DependencyAnalysis
             // This would need ControlFlowBuilder and setting up labels and such.
             // All doable, just more code.
 
+            BlobBuilder outputBodyBuilder = writeContext.GetSharedBlobBuilder();
             byte[] bodyBytes = bodyBlock.GetILBytes();
-            BlobBuilder outputBodyBuilder = new(); // TODO: Cache this?
-            InstructionEncoder instructionEncoder = new(outputBodyBuilder);
             ILReader ilReader = new ILReader(bodyBytes);
             while (ilReader.HasNext)
             {
@@ -113,31 +123,60 @@ namespace ILTrim.DependencyAnalysis
                     case ILOpcode.ldfld:
                     case ILOpcode.ldflda:
                     case ILOpcode.call:
+                    case ILOpcode.calli:
+                    case ILOpcode.callvirt:
                     case ILOpcode.newobj:
                     case ILOpcode.ldtoken:
                     case ILOpcode.ldftn:
+                    case ILOpcode.ldvirtftn:
                     case ILOpcode.initobj:
                     case ILOpcode.stelem:
                     case ILOpcode.ldelem:
+                    case ILOpcode.ldelema:
                     case ILOpcode.box:
+                    case ILOpcode.unbox:
                     case ILOpcode.unbox_any:
-                        instructionEncoder.OpCode((ILOpCode)(int)opcode);
-                        instructionEncoder.Token(MetadataTokens.GetToken(writeContext.TokenMap.MapToken(MetadataTokens.EntityHandle(ilReader.ReadILToken()))));
+                    case ILOpcode.jmp:
+                    case ILOpcode.cpobj:
+                    case ILOpcode.ldobj:
+                    case ILOpcode.castclass:
+                    case ILOpcode.isinst:
+                    case ILOpcode.stobj:
+                    case ILOpcode.refanyval:
+                    case ILOpcode.mkrefany:
+                    case ILOpcode.constrained:
+                        if (opcode > ILOpcode.prefix1)
+                        {
+                            outputBodyBuilder.WriteByte((byte)ILOpcode.prefix1);
+                            outputBodyBuilder.WriteByte((byte)(((int)opcode) & 0xff));
+                        }
+                        else
+                        {
+                            Debug.Assert(opcode != ILOpcode.prefix1);
+                            outputBodyBuilder.WriteByte((byte)opcode);
+                        }
+                        outputBodyBuilder.WriteInt32(MetadataTokens.GetToken(writeContext.TokenMap.MapToken(MetadataTokens.EntityHandle(ilReader.ReadILToken()))));
                         break;
 
                     default:
-                        instructionEncoder.CodeBuilder.WriteBytes(bodyBytes, offset, ILOpcodeHelper.GetSize(opcode));
+                        outputBodyBuilder.WriteBytes(bodyBytes, offset, ILOpcodeHelper.GetSize(opcode));
                         ilReader.Skip(opcode);
                         break;
                 }
             }
 
             MethodBodyStreamEncoder bodyStreamEncoder = new MethodBodyStreamEncoder(writeContext.ILStream);
-            return bodyStreamEncoder.AddMethodBody(
-                instructionEncoder,
+            MethodBodyStreamEncoder.MethodBody bodyEncoder = bodyStreamEncoder.AddMethodBody(
+                outputBodyBuilder.Count,
                 bodyBlock.MaxStack,
+                exceptionRegionCount: 0,
+                hasSmallExceptionRegions: false,
                 (StandaloneSignatureHandle)writeContext.TokenMap.MapToken(bodyBlock.LocalSignature),
                 bodyBlock.LocalVariablesInitialized ? MethodBodyAttributes.InitLocals : MethodBodyAttributes.None);
+            BlobWriter instructionsWriter = new(bodyEncoder.Instructions);
+            outputBodyBuilder.WriteContentTo(ref instructionsWriter);
+
+            return bodyEncoder.Offset;
         }
 
         protected override string GetName(NodeFactory factory)

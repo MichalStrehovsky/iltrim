@@ -134,14 +134,28 @@ namespace ILTrim.Tests
                         case ILOpcode.ldfld:
                         case ILOpcode.ldflda:
                         case ILOpcode.call:
+                        case ILOpcode.calli:
+                        case ILOpcode.callvirt:
                         case ILOpcode.newobj:
                         case ILOpcode.ldtoken:
                         case ILOpcode.ldftn:
+                        case ILOpcode.ldvirtftn:
                         case ILOpcode.initobj:
                         case ILOpcode.stelem:
                         case ILOpcode.ldelem:
+                        case ILOpcode.ldelema:
                         case ILOpcode.box:
+                        case ILOpcode.unbox:
                         case ILOpcode.unbox_any:
+                        case ILOpcode.jmp:
+                        case ILOpcode.cpobj:
+                        case ILOpcode.ldobj:
+                        case ILOpcode.castclass:
+                        case ILOpcode.isinst:
+                        case ILOpcode.stobj:
+                        case ILOpcode.refanyval:
+                        case ILOpcode.mkrefany:
+                        case ILOpcode.constrained:
                             int untrimmedToken = untrimmedReader.ReadILToken();
                             int trimmedToken = trimmedReader.ReadILToken();
                             Assert.Equal(MetadataTokens.EntityHandle(untrimmedToken).Kind, MetadataTokens.EntityHandle(trimmedToken).Kind);
