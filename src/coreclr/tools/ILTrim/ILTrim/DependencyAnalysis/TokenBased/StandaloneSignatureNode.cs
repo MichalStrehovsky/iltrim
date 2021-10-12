@@ -47,9 +47,6 @@ namespace ILTrim.DependencyAnalysis
                         TypeDefinitionHandle typeDefHandle = (TypeDefinitionHandle)signatureReader.ReadTypeHandle();
                         yield return new DependencyListEntry(factory.TypeDefinition(_module, typeDefHandle), "Local variable type");
                         break;
-
-                    case SignatureTypeCode.Int32:
-                        yield break;
                 }
             }
 

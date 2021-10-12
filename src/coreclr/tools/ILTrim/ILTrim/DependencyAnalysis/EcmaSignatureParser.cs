@@ -14,12 +14,9 @@ namespace ILTrim.DependencyAnalysis
 {
     public struct EcmaSignatureParser
     {
-#pragma warning disable 0169
         private MetadataReader _reader;
         private BlobBuilder _builder;
         private TokenMap _tokenMap;
-#pragma warning restore 0169
-
 
         public EcmaSignatureParser(MetadataReader reader, TokenMap tokenMap)
         {
