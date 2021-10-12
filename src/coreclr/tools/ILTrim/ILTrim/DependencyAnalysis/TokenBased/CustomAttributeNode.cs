@@ -20,12 +20,14 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            yield return new(factory.ModuleDefinition(_module), "Owning module");
-
             CustomAttribute customAttribute = _module.MetadataReader.GetCustomAttribute(Handle);
+
+            // We decided not to report parent as a dependency because we don't expect custom attributes to be needed outside of their parent references
 
             if (!customAttribute.Constructor.IsNil)
                 yield return new DependencyListEntry(factory.GetNodeForToken(_module, customAttribute.Constructor), "Custom attribute constructor");
+
+            // TODO: Parse custom attribute value and add dependencies from it
         }
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)
@@ -35,6 +37,7 @@ namespace ILTrim.DependencyAnalysis
 
             var builder = writeContext.MetadataBuilder;
 
+            // TODO: the value blob might contain references to tokens we need to rewrite
             var valueBlob = reader.GetBlobBytes(customAttribute.Value);
 
             return builder.AddCustomAttribute(writeContext.TokenMap.MapToken(customAttribute.Parent),

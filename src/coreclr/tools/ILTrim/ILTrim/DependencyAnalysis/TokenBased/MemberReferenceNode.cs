@@ -20,9 +20,9 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            yield return new(factory.ModuleDefinition(_module), "Owning module");
-
             MemberReference memberRef = _module.MetadataReader.GetMemberReference(Handle);
+
+            // TODO: MemberReference has other dependencies from signature
 
             if (!memberRef.Parent.IsNil)
                 yield return new DependencyListEntry(factory.GetNodeForToken(_module, memberRef.Parent), "Parent of member reference");
@@ -35,6 +35,7 @@ namespace ILTrim.DependencyAnalysis
 
             var builder = writeContext.MetadataBuilder;
 
+            // TODO: the signature blob might contain references to tokens we need to rewrite
             var signatureBlob = reader.GetBlobBytes(memberRef.Signature);
 
             return builder.AddMemberReference(writeContext.TokenMap.MapToken(memberRef.Parent),

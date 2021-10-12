@@ -29,7 +29,7 @@ namespace ILTrim.DependencyAnalysis
 
             foreach (CustomAttributeHandle customAttribute in fieldDef.GetCustomAttributes())
             {
-                yield return new(factory.GetNodeForToken(_module, customAttribute), "Custom attribute of a type");
+                yield return new(factory.CustomAttribute(_module, customAttribute), "Custom attribute of a type");
             }
 
         }
