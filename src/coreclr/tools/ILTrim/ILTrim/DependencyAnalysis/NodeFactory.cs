@@ -31,7 +31,7 @@ namespace ILTrim.DependencyAnalysis
                 case HandleKind.MethodDefinition:
                     return MethodDefinition(module, (MethodDefinitionHandle)handle);
                 case HandleKind.Parameter:
-                    throw new NotImplementedException();
+                    return Parameter(module, (ParameterHandle)handle);
                 case HandleKind.InterfaceImplementation:
                     throw new NotImplementedException();
                 case HandleKind.MemberReference:
