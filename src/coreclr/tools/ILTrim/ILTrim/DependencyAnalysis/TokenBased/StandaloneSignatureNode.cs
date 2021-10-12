@@ -3,6 +3,8 @@
 
 using System.Collections.Generic;
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
+using System.Linq;
 
 namespace ILTrim.DependencyAnalysis
 {
@@ -18,12 +20,16 @@ namespace ILTrim.DependencyAnalysis
 
         private StandaloneSignatureHandle Handle => (StandaloneSignatureHandle)_handle;
 
+
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            // TODO: These need to go a different structure, similar to src\coreclr\tools\Common\TypeSystem\Ecma\EcmaSignatureParser.cs
-            // Adding a small prototype for local variable signature parser to evaluate
-            StandaloneSignature signature = _module.MetadataReader.GetStandaloneSignature(Handle);
-            BlobReader signatureReader = _module.MetadataReader.GetBlobReader(signature.Signature);
+            MetadataReader reader = _module.MetadataReader;
+            StandaloneSignature standaloneSig = reader.GetStandaloneSignature(Handle);
+
+            //TODO: These need to go a different structure, similar to src\coreclr\tools\Common\TypeSystem\Ecma\EcmaSignatureParser.cs
+            //Adding a small prototype for local variable signature parser to evaluate
+
+            BlobReader signatureReader = reader.GetBlobReader(standaloneSig.Signature);
 
             SignatureHeader header = signatureReader.ReadSignatureHeader();
             int count = signatureReader.ReadCompressedInteger();
@@ -51,11 +57,47 @@ namespace ILTrim.DependencyAnalysis
             MetadataReader reader = _module.MetadataReader;
             StandaloneSignature standaloneSig = reader.GetStandaloneSignature(Handle);
 
-            // TODO: the signature might have tokens we need to rewrite
+
+            BlobReader signatureReader = reader.GetBlobReader(standaloneSig.Signature);
+            SignatureHeader header = signatureReader.ReadSignatureHeader();
+            int varCount = signatureReader.ReadCompressedInteger();
+            var blobBuilder = new BlobBuilder();
+            var encoder = new BlobEncoder(blobBuilder);
+            var localEncoder = encoder.LocalVariableSignature(varCount);
+
+            for (int i = 0; i < varCount; i++)
+            {
+                SignatureTypeCode typeCode = signatureReader.ReadSignatureTypeCode();
+                switch (typeCode)
+                {
+                    case SignatureTypeCode.TypeHandle:
+                        {
+                            var localVarTypeEncoder = localEncoder.AddVariable();
+
+                            var signatureTypeEncoder = localVarTypeEncoder.Type();
+                            signatureTypeEncoder.Type(writeContext.TokenMap.MapToken((TypeDefinitionHandle)signatureReader.ReadTypeHandle()), isValueType: false);
+                            break;
+                        }
+
+                    case SignatureTypeCode.Int32:
+                        {
+                            var localVarTypeEncoder = localEncoder.AddVariable();
+
+                            var signatureTypeEncoder = localVarTypeEncoder.Type();
+                            signatureTypeEncoder.Int32();
+                            break;
+                        }
+
+                    default:
+                        break;
+                }
+            }
+
+            byte[] blobBytes = blobBuilder.ToArray();
             var builder = writeContext.MetadataBuilder;
             return builder.AddStandaloneSignature(
-                builder.GetOrAddBlob(reader.GetBlobBytes(standaloneSig.Signature))
-                );
+                builder.GetOrAddBlob(blobBytes));
+
         }
 
         public override string ToString()
