@@ -6,6 +6,8 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Linq;
 
+using Internal.TypeSystem;
+
 namespace ILTrim.DependencyAnalysis
 {
     /// <summary>
@@ -20,18 +22,20 @@ namespace ILTrim.DependencyAnalysis
 
         private StandaloneSignatureHandle Handle => (StandaloneSignatureHandle)_handle;
 
-
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            MetadataReader reader = _module.MetadataReader;
-            StandaloneSignature standaloneSig = reader.GetStandaloneSignature(Handle);
+            // @TODO: These need to go EcmaSignatureParser
+            // Cannot think of a design that can move this logic to that struct
 
-            //TODO: These need to go a different structure, similar to src\coreclr\tools\Common\TypeSystem\Ecma\EcmaSignatureParser.cs
-            //Adding a small prototype for local variable signature parser to evaluate
+            MetadataReader reader = _module.MetadataReader;
+
+            StandaloneSignature standaloneSig = reader.GetStandaloneSignature(Handle);
 
             BlobReader signatureReader = reader.GetBlobReader(standaloneSig.Signature);
 
-            SignatureHeader header = signatureReader.ReadSignatureHeader();
+            if (signatureReader.ReadSignatureHeader().Kind != SignatureKind.LocalVariables)
+                ThrowHelper.ThrowInvalidProgramException();
+
             int count = signatureReader.ReadCompressedInteger();
 
             for (int i = 0; i < count; i++)
@@ -54,46 +58,9 @@ namespace ILTrim.DependencyAnalysis
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)
         {
-            MetadataReader reader = _module.MetadataReader;
-            StandaloneSignature standaloneSig = reader.GetStandaloneSignature(Handle);
+            EcmaSignatureParser signatureParser = new EcmaSignatureParser(_module.MetadataReader, writeContext.TokenMap);
+            byte[] blobBytes = signatureParser.GetLocalVariableBlob(Handle);
 
-
-            BlobReader signatureReader = reader.GetBlobReader(standaloneSig.Signature);
-            SignatureHeader header = signatureReader.ReadSignatureHeader();
-            int varCount = signatureReader.ReadCompressedInteger();
-            var blobBuilder = new BlobBuilder();
-            var encoder = new BlobEncoder(blobBuilder);
-            var localEncoder = encoder.LocalVariableSignature(varCount);
-
-            for (int i = 0; i < varCount; i++)
-            {
-                SignatureTypeCode typeCode = signatureReader.ReadSignatureTypeCode();
-                switch (typeCode)
-                {
-                    case SignatureTypeCode.TypeHandle:
-                        {
-                            var localVarTypeEncoder = localEncoder.AddVariable();
-
-                            var signatureTypeEncoder = localVarTypeEncoder.Type();
-                            signatureTypeEncoder.Type(writeContext.TokenMap.MapToken((TypeDefinitionHandle)signatureReader.ReadTypeHandle()), isValueType: false);
-                            break;
-                        }
-
-                    case SignatureTypeCode.Int32:
-                        {
-                            var localVarTypeEncoder = localEncoder.AddVariable();
-
-                            var signatureTypeEncoder = localVarTypeEncoder.Type();
-                            signatureTypeEncoder.Int32();
-                            break;
-                        }
-
-                    default:
-                        break;
-                }
-            }
-
-            byte[] blobBytes = blobBuilder.ToArray();
             var builder = writeContext.MetadataBuilder;
             return builder.AddStandaloneSignature(
                 builder.GetOrAddBlob(blobBytes));
