@@ -17,11 +17,12 @@ namespace Mono.Linker.Tests.TestCases
             string displayNameBase = displayNameRelative.Depth == 1 ? "" : displayNameRelative.Parent.ToString(SlashMode.Forward).Replace('/', '.') + ".";
             DisplayName = $"{displayNameBase}{sourceFile.FileNameWithoutExtension}";
 
-			// A little hacky, but good enough for name.  No reason why namespace & type names
-			// should not follow the directory structure
-			ReconstructedFullTypeName = $"{sourceFile.Parent.RelativeTo (rootCasesDirectory.Parent).ToString (SlashMode.Forward).Replace ('/', '.')}.{sourceFile.FileNameWithoutExtension}";
+            // A little hacky, but good enough for name.  No reason why namespace & type names
+            // should not follow the directory structure
+            //ReconstructedFullTypeName = $"{sourceFile.Parent.RelativeTo (rootCasesDirectory.Parent).ToString (SlashMode.Forward).Replace ('/', '.')}.{sourceFile.FileNameWithoutExtension}";
+            ReconstructedFullTypeName = $"Mono.Linker.Tests.Cases.{fullyRelative.Parent.ToString (SlashMode.Forward).Replace('/', '.')}.{sourceFile.FileNameWithoutExtension}";
 
-			var firstParentRelativeToRoot = SourceFile.RelativeTo (rootCasesDirectory).Elements.First ();
+            var firstParentRelativeToRoot = SourceFile.RelativeTo (rootCasesDirectory).Elements.First ();
 			TestSuiteDirectory = rootCasesDirectory.Combine (firstParentRelativeToRoot);
 		}
 
