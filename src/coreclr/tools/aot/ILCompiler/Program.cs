@@ -85,12 +85,16 @@ namespace ILCompiler
 
         private IReadOnlyList<string> _rootedAssemblies = Array.Empty<string>();
         private IReadOnlyList<string> _conditionallyRootedAssemblies = Array.Empty<string>();
+        private IReadOnlyList<string> _trimmedAssemblies = Array.Empty<string>();
+        private bool _rootDefaultAssemblies;
 
         public IReadOnlyList<string> _mibcFilePaths = Array.Empty<string>();
 
         private IReadOnlyList<string> _singleWarnEnabledAssemblies = Array.Empty<string>();
         private IReadOnlyList<string> _singleWarnDisabledAssemblies = Array.Empty<string>();
         private bool _singleWarn;
+
+        private string _makeReproPath;
 
         private bool _help;
 
@@ -215,6 +219,8 @@ namespace ILCompiler
 
                 syntax.DefineOptionList("root", ref _rootedAssemblies, "Fully generate given assembly");
                 syntax.DefineOptionList("conditionalroot", ref _conditionallyRootedAssemblies, "Fully generate given assembly if it's used");
+                syntax.DefineOptionList("trim", ref _trimmedAssemblies, "Trim the specified assembly");
+                syntax.DefineOption("defaultrooting", ref _rootDefaultAssemblies, "Root assemblies that are not marked [IsTrimmable]");
 
                 syntax.DefineOption("targetarch", ref _targetArchitectureStr, "Target architecture for cross compilation");
                 syntax.DefineOption("targetos", ref _targetOSStr, "Target OS for cross compilation");
@@ -222,6 +228,8 @@ namespace ILCompiler
                 syntax.DefineOption("singlemethodtypename", ref _singleMethodTypeName, "Single method compilation: assembly-qualified name of the owning type");
                 syntax.DefineOption("singlemethodname", ref _singleMethodName, "Single method compilation: name of the method");
                 syntax.DefineOptionList("singlemethodgenericarg", ref _singleMethodGenericArgs, "Single method compilation: generic arguments to the method");
+
+                syntax.DefineOption("make-repro-path", ref _makeReproPath, "Path where to place a repro package");
 
                 syntax.DefineParameterList("in", ref inputFiles, "Input file(s) to compile");
             });
@@ -248,6 +256,16 @@ namespace ILCompiler
 
             foreach (var reference in referenceFiles)
                 Helpers.AppendExpandedPaths(_referenceFilePaths, reference, false);
+
+            if (_makeReproPath != null)
+            {
+                // Create a repro package in the specified path
+                // This package will have the set of input files needed for compilation
+                // + the original command line arguments
+                // + a rsp file that should work to directly run out of the zip file
+
+                Helpers.MakeReproPackage(_makeReproPath, _outputFilePath, args, argSyntax, new[] { "-r", "-m", "--rdxml", "--directpinvokelist" });
+            }
 
             return argSyntax;
         }
@@ -582,6 +600,7 @@ namespace ILCompiler
 
             _rootedAssemblies = new List<string>(_rootedAssemblies.Select(a => ILLinkify(a)));
             _conditionallyRootedAssemblies = new List<string>(_conditionallyRootedAssemblies.Select(a => ILLinkify(a)));
+            _trimmedAssemblies = new List<string>(_trimmedAssemblies.Select(a => ILLinkify(a)));
 
             static string ILLinkify(string rootedAssembly)
             {
@@ -655,6 +674,8 @@ namespace ILCompiler
                     metadataGenerationOptions |= UsageBasedMetadataGenerationOptions.ReflectionILScanning;
                 if (_reflectedOnly)
                     metadataGenerationOptions |= UsageBasedMetadataGenerationOptions.ReflectedMembersOnly;
+                if (_rootDefaultAssemblies)
+                    metadataGenerationOptions |= UsageBasedMetadataGenerationOptions.RootDefaultAssemblies;
             }
             else
             {
@@ -678,7 +699,8 @@ namespace ILCompiler
                     metadataGenerationOptions,
                     logger,
                     featureSwitches,
-                    _conditionallyRootedAssemblies.Concat(_rootedAssemblies));
+                    _conditionallyRootedAssemblies.Concat(_rootedAssemblies),
+                    _trimmedAssemblies);
 
             InteropStateManager interopStateManager = new InteropStateManager(typeSystemContext.GeneratedAssembly);
             InteropStubManager interopStubManager = new UsageBasedInteropStubManager(interopStateManager, pinvokePolicy);
