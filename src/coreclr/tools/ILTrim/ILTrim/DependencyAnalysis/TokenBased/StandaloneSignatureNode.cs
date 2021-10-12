@@ -20,7 +20,29 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            // TODO: the signature might depend on other tokens
+            // TODO: These need to go a different structure, similar to src\coreclr\tools\Common\TypeSystem\Ecma\EcmaSignatureParser.cs
+            // Adding a small prototype for local variable signature parser to evaluate
+            StandaloneSignature signature = _module.MetadataReader.GetStandaloneSignature(Handle);
+            BlobReader signatureReader = _module.MetadataReader.GetBlobReader(signature.Signature);
+
+            SignatureHeader header = signatureReader.ReadSignatureHeader();
+            int count = signatureReader.ReadCompressedInteger();
+
+            for (int i = 0; i < count; i++)
+            {
+                SignatureTypeCode typeCode = signatureReader.ReadSignatureTypeCode();
+                switch (typeCode)
+                {
+                    case SignatureTypeCode.TypeHandle:
+                        TypeDefinitionHandle typeDefHandle = (TypeDefinitionHandle)signatureReader.ReadTypeHandle();
+                        yield return new DependencyListEntry(factory.TypeDefinition(_module, typeDefHandle), "Local variable type");
+                        break;
+
+                    case SignatureTypeCode.Int32:
+                        yield break;
+                }
+            }
+
             yield break;
         }
 
