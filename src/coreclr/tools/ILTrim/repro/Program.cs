@@ -11,7 +11,7 @@ interface IProgram
     static int Field;
 
     static int FirstMethod() => 300;
-    static int Main(string[] args)
+    static int Main()
     {
 #pragma warning disable 0219
         IAnotherType mylocal = default;

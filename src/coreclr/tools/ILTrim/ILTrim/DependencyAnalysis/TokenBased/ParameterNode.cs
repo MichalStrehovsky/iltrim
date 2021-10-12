@@ -1,11 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Collections.Generic;
 using System.Reflection.Metadata;
-using System.Threading;
-using ILTrim.DependencyAnalysis;
 
 namespace ILTrim.DependencyAnalysis
 {
@@ -23,7 +20,11 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory context) => null;
 
-        public override string ToString() => throw new NotImplementedException();
+        public override string ToString()
+        {
+            MetadataReader reader = _module.MetadataReader;
+            return reader.GetString(reader.GetParameter(Handle).Name);
+        }
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)
         {
