@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
@@ -22,6 +22,7 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
+            var _isValueType = ((EcmaType)_module.GetObject(_handle)).IsValueType;
             yield return new DependencyListEntry(factory.ModuleDefinition(_module), "Owning module");
 
             TypeDefinition typeDef = _module.MetadataReader.GetTypeDefinition(Handle);
