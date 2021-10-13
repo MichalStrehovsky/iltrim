@@ -56,6 +56,12 @@ namespace ILTrim.DependencyAnalysis
             if (typeDef.IsNested)
                 builder.AddNestedType((TypeDefinitionHandle)writeContext.TokenMap.MapToken(Handle), (TypeDefinitionHandle)writeContext.TokenMap.MapToken(typeDef.GetDeclaringType()));
 
+            // Adding PropertyMap entries when writing types ensures that the PropertyMap table has the same
+            // order as the TypeDefinition table. This allows us to use the same logic in MapTypePropertyList
+            // as we have for fields and methods.
+            PropertyDefinitionHandle propertyHandle = writeContext.TokenMap.MapTypePropertyList(Handle);
+            builder.AddPropertyMap(Handle, propertyHandle);
+
             return builder.AddTypeDefinition(typeDef.Attributes,
                 builder.GetOrAddString(reader.GetString(typeDef.Namespace)),
                 builder.GetOrAddString(reader.GetString(typeDef.Name)),

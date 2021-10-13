@@ -52,7 +52,7 @@ namespace ILTrim
     {
         public MethodDefinitionHandle MapTypeMethodList(TypeDefinitionHandle typeDefHandle)
         {
-            // Grabbing the mapped token to use as a MethodList is awakward because
+            // Grabbing the mapped token to use as a MethodList is awkward because
             // S.R.Metadata abstracts away the raw value of the MethodList field of the record.
             //
             // All we can do is enumerate the methods on the type, but that might not be useful
@@ -104,7 +104,7 @@ namespace ILTrim
 
         public FieldDefinitionHandle MapTypeFieldList(TypeDefinitionHandle typeDefHandle)
         {
-            // Grabbing the mapped token to use as a FieldList is awakward because
+            // Grabbing the mapped token to use as a FieldList is awkward because
             // S.R.Metadata abstracts away the raw value of the FieldList field of the record.
             //
             // All we can do is enumerate the fields on the type, but that might not be useful
@@ -201,6 +201,58 @@ namespace ILTrim
             if (result.IsNil)
             {
                 result = MetadataTokens.ParameterHandle(_preAssignedRowIdsPerTable[(int)TableIndex.Param] + 1);
+            }
+
+            return result;
+        }
+
+        public PropertyDefinitionHandle MapTypePropertyList(TypeDefinitionHandle typeDefHandle)
+        {
+            // Grabbing the mapped token to use as a PropertyList is awkward because
+            // S.R.Metadata abstracts away the raw value of the PropertyList field of the record.
+            //
+            // All we can do is enumerate the properties on the type, but that might not be useful
+            // if the type has no properties. If the type has no properties, we need to produce
+            // the token of the first property of the next type with properties.
+
+            PropertyDefinitionHandle sourceToken = default;
+            for (TypeDefinitionHandle currentType = typeDefHandle;
+                MetadataTokens.GetRowNumber(currentType) <= _reader.GetTableRowCount(TableIndex.TypeDef);
+                currentType = MetadataTokens.TypeDefinitionHandle(MetadataTokens.GetRowNumber(currentType) + 1))
+            {
+                PropertyDefinitionHandleCollection propertyList = _reader.GetTypeDefinition(currentType).GetProperties();
+                if (propertyList.Count > 0)
+                {
+                    var enumerator = propertyList.GetEnumerator();
+                    enumerator.MoveNext();
+                    sourceToken = enumerator.Current;
+                    break;
+                }
+            }
+
+            PropertyDefinitionHandle result = default;
+            if (!sourceToken.IsNil)
+            {
+                // We got a token in the source assembly, but the token might not be present in the output.
+                // We need to find the first token starting with this one that is part of the output.
+                for (int currentPropertyRow = MetadataTokens.GetRowNumber(sourceToken);
+                    currentPropertyRow < _tokenMap[(int)TableIndex.Property].Length;
+                    currentPropertyRow++)
+                {
+                    EntityHandle currentProperty = _tokenMap[(int)TableIndex.Property][currentPropertyRow];
+                    if (!currentProperty.IsNil)
+                    {
+                        result = (PropertyDefinitionHandle)currentProperty;
+                        break;
+                    }
+                }
+            }
+
+            // If no type after this type has marked properties, we return the number of total properties
+            // in the output plus 1
+            if (result.IsNil)
+            {
+                result = MetadataTokens.PropertyDefinitionHandle(_preAssignedRowIdsPerTable[(int)TableIndex.Property] + 1);
             }
 
             return result;

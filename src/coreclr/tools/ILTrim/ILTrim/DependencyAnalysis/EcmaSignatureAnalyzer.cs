@@ -178,5 +178,17 @@ namespace ILTrim.DependencyAnalysis
                 return _dependenciesOrNull;
             }
         }
+
+        public static DependencyList AnalyzePropertySignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies = null)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzePropertySignature();
+        }
+
+        private DependencyList AnalyzePropertySignature()
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            System.Diagnostics.Debug.Assert(header.Kind == SignatureKind.Property);
+            return AnalyzeMethodSignature(header);
+        }
     }
 }
