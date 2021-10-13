@@ -51,11 +51,30 @@ namespace ILTrim.DependencyAnalysis
             // TODO: the signature blob might contain references to tokens we need to rewrite
             var signatureBlob = reader.GetBlobBytes(fieldDef.Signature);
 
+            if ((fieldDef.Attributes & FieldAttributes.HasFieldRVA) == FieldAttributes.HasFieldRVA)
+            {
+                WriteMagicField(fieldDef, writeContext);
+            }
+
             return builder.AddFieldDefinition(
                 fieldDef.Attributes,
                 builder.GetOrAddString(reader.GetString(fieldDef.Name)),
                 builder.GetOrAddBlob(signatureBlob));
         }
+
+        unsafe internal void WriteMagicField(FieldDefinition fieldDef, ModuleWritingContext writeContext)
+        {
+            MetadataReader reader = _module.MetadataReader;
+
+            int rva = fieldDef.GetRelativeVirtualAddress();
+            if (rva != 0)
+            {
+                var rvaBlobReader = _module.PEReader.GetSectionData(rva).Pointer;
+                var classLayoutSize = reader.GetTypeDefinition((TypeDefinitionHandle)writeContext.TokenMap.MapToken(fieldDef.GetDeclaringType())).GetLayout().Size;
+                BlobBuilder outputBodyBuilder = writeContext.fieldBlobBuilder;
+                outputBodyBuilder.WriteBytes(rvaBlobReader, classLayoutSize);
+            }
+        } 
 
         public override string ToString()
         {
