@@ -22,7 +22,6 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            var _isValueType = ((EcmaType)_module.GetObject(_handle)).IsValueType;
             yield return new DependencyListEntry(factory.ModuleDefinition(_module), "Owning module");
 
             TypeDefinition typeDef = _module.MetadataReader.GetTypeDefinition(Handle);
