@@ -39,6 +39,17 @@ namespace ILTrim.DependencyAnalysis
             Dependencies.Add(_factory.GetNodeForToken(_module, _blobReader.ReadTypeHandle()), "Custom modifier");
         }
 
+        public static DependencyList AnalyzeSpecSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeSpecSignature();
+        }
+
+        private DependencyList AnalyzeSpecSignature()
+        {
+            AnalyzeType();
+            return _dependenciesOrNull;
+        }
+
         private void AnalyzeType()
         {
             AnalyzeType(_blobReader.ReadSignatureTypeCode());
