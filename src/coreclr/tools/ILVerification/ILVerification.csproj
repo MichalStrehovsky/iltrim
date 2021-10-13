@@ -8,6 +8,7 @@
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <TargetFramework>netstandard2.0</TargetFramework>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <Platforms>x64;x86</Platforms>
   </PropertyGroup>
 
   <Import Project="ILVerification.projitems" />
