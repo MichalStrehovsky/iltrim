@@ -21,7 +21,10 @@ namespace ILTrim.DependencyAnalysis
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
             GenericParameter genericParam = _module.MetadataReader.GetGenericParameter(Handle);
-            yield break;
+            foreach (var genericParamConstrain in genericParam.GetConstraints())
+            {
+                yield return new DependencyListEntry(factory.GenericParameterConstraint(_module, genericParamConstrain), "Generic Parameter Constraint of Generic Parameter");
+            }
         }
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)
