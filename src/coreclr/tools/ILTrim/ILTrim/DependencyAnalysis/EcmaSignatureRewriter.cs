@@ -163,5 +163,90 @@ namespace ILTrim.DependencyAnalysis
                 RewriteType(typeCode, localVarTypeEncoder.Type(isByRef, isPinned));
             }
         }
+
+        public static void RewriteMethodSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        {
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteMethodSignature(blobBuilder);
+        }
+
+        private void RewriteMethodSignature(BlobBuilder blobBuilder)
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            RewriteMethodSignature(blobBuilder, header);
+        }
+
+        private void RewriteMethodSignature(BlobBuilder blobBuilder, SignatureHeader header)
+        {
+            int arity = header.IsGeneric ? _blobReader.ReadCompressedInteger() : 0;
+            var encoder = new BlobEncoder(blobBuilder);
+            var sigEncoder = encoder.MethodSignature(header.CallingConvention, arity, header.IsInstance);
+
+            int count = _blobReader.ReadCompressedInteger();
+
+            sigEncoder.Parameters(count, out ReturnTypeEncoder returnTypeEncoder, out ParametersEncoder paramsEncoder);
+
+            bool isByRef = false;
+        againReturnType:
+            SignatureTypeCode typeCode = _blobReader.ReadSignatureTypeCode();
+            if (typeCode == SignatureTypeCode.ByReference)
+            {
+                isByRef = true;
+                goto againReturnType;
+            }
+            if (typeCode == SignatureTypeCode.RequiredModifier || typeCode == SignatureTypeCode.OptionalModifier)
+            {
+                RewriteCustomModifier(typeCode, returnTypeEncoder.CustomModifiers());
+                goto againReturnType;
+            }
+
+            if (typeCode == SignatureTypeCode.Void)
+            {
+                returnTypeEncoder.Void();
+            }
+            else
+            {
+                RewriteType(typeCode, returnTypeEncoder.Type(isByRef));
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                ParameterTypeEncoder paramEncoder = paramsEncoder.AddParameter();
+
+                isByRef = false;
+
+            againParameter:
+                typeCode = _blobReader.ReadSignatureTypeCode();
+                if (typeCode == SignatureTypeCode.RequiredModifier || typeCode == SignatureTypeCode.OptionalModifier)
+                {
+                    RewriteCustomModifier(typeCode, paramEncoder.CustomModifiers());
+                    goto againParameter;
+                }
+                if (typeCode == SignatureTypeCode.ByReference)
+                {
+                    isByRef = true;
+                    goto againParameter;
+                }
+                RewriteType(typeCode, paramEncoder.Type(isByRef));
+            }
+        }
+
+        public static void RewriteMemberReferenceSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        {
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteMemberReferenceSignature(blobBuilder);
+        }
+
+        private void RewriteMemberReferenceSignature(BlobBuilder blobBuilder)
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            if (header.Kind == SignatureKind.Method)
+            {
+                RewriteMethodSignature(blobBuilder, header);
+            }
+            else
+            {
+                System.Diagnostics.Debug.Assert(header.Kind == SignatureKind.Field);
+                // TODO: fields
+            }
+        }
     }
 }

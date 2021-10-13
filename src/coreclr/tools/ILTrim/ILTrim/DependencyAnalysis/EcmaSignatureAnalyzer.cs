@@ -131,5 +131,52 @@ namespace ILTrim.DependencyAnalysis
 
             return _dependenciesOrNull;
         }
+
+        public static DependencyList AnalyzeMethodSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies = null)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeMethodSignature();
+        }
+
+        private DependencyList AnalyzeMethodSignature()
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            return AnalyzeMethodSignature(header);
+        }
+
+        private DependencyList AnalyzeMethodSignature(SignatureHeader header)
+        {
+            int arity = header.IsGeneric ? _blobReader.ReadCompressedInteger() : 0;
+            int count = _blobReader.ReadCompressedInteger();
+
+            // Return type
+            AnalyzeType();
+
+            for (int i = 0; i < count; i++)
+            {
+                AnalyzeType();
+            }
+
+            return _dependenciesOrNull;
+        }
+
+        public static DependencyList AnalyzeMemberReferenceSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies = null)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeMemberReferenceSignature();
+        }
+
+        private DependencyList AnalyzeMemberReferenceSignature()
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            if (header.Kind == SignatureKind.Method)
+            {
+                return AnalyzeMethodSignature(header);
+            }
+            else
+            {
+                System.Diagnostics.Debug.Assert(header.Kind == SignatureKind.Field);
+                // TODO: field signature
+                return _dependenciesOrNull;
+            }
+        }
     }
 }
