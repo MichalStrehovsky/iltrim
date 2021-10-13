@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using ILVerify;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Linker.Tests.Cases.Expectations.Assertions;
@@ -189,8 +191,51 @@ namespace Mono.Linker.Tests.TestCasesRunner
 			}
 		}
 
-		protected virtual void AdditionalChecking (TrimmedTestCaseResult linkResult, AssemblyDefinition original)
+        private sealed class Resolver : IResolver
+        {
+			private readonly Dictionary<string, string> _assemblyPaths = new Dictionary<string, string>();
+			private readonly PEReader _reader;
+			public Resolver(PEReader reader)
+            {
+				_reader = reader;
+
+                var netcoreappDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+                foreach (var assembly in Directory.EnumerateFiles(netcoreappDir))
+                {
+                    if (Path.GetExtension(assembly) != ".dll")
+                        continue;
+                    var assemblyName = Path.GetFileNameWithoutExtension(assembly);
+                    if (assemblyName.Contains("Native"))
+                        continue;
+                    if (assemblyName.StartsWith("Microsoft") ||
+                        assemblyName.StartsWith("System") ||
+                        assemblyName == "mscorlib" || assemblyName == "netstandard")
+					{
+						_assemblyPaths.Add(assemblyName, assembly);
+					}
+                }
+            }
+
+            public PEReader Resolve(string simpleName)
+			{
+				if (_assemblyPaths.TryGetValue(simpleName, out var asmPath))
+				{
+					return new PEReader(File.OpenRead(asmPath));
+				}
+				return _reader;
+			}
+        }
+
+        protected virtual void AdditionalChecking (TrimmedTestCaseResult linkResult, AssemblyDefinition original)
 		{
+			using var peReader = new PEReader(File.OpenRead(linkResult.OutputAssemblyPath.ToString()));
+			var verifier = new Verifier(new Resolver(peReader), new VerifierOptions() {
+			});
+            verifier.SetSystemModuleName(typeof(object).Assembly.GetName());
+			foreach (var result in verifier.Verify(peReader))
+			{
+				Assert.True(false, result.Message);
+			}
 		}
 
 		protected virtual void InitialChecking (TrimmedTestCaseResult linkResult, AssemblyDefinition original, AssemblyDefinition linked)
