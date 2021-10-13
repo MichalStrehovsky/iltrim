@@ -4,6 +4,8 @@
 using System.Collections.Generic;
 using System.Reflection.Metadata;
 
+using Internal.TypeSystem.Ecma;
+
 namespace ILTrim.DependencyAnalysis
 {
     /// <summary>
@@ -26,6 +28,11 @@ namespace ILTrim.DependencyAnalysis
             if (!typeDef.BaseType.IsNil)
             {
                 yield return new(factory.GetNodeForToken(_module, typeDef.BaseType), "Base type of a type");
+            }
+
+            foreach (var parameter in typeDef.GetGenericParameters())
+            {
+                yield return new(factory.GenericParameter(_module, parameter), "Generic parameter of type");
             }
 
             foreach (CustomAttributeHandle customAttribute in typeDef.GetCustomAttributes())
