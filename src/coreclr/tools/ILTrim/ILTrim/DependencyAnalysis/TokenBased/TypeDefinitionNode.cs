@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
@@ -64,12 +64,18 @@ namespace ILTrim.DependencyAnalysis
             if (typeDef.IsNested)
                 builder.AddNestedType((TypeDefinitionHandle)writeContext.TokenMap.MapToken(Handle), (TypeDefinitionHandle)writeContext.TokenMap.MapToken(typeDef.GetDeclaringType()));
 
-            return builder.AddTypeDefinition(typeDef.Attributes,
+            var typeDefHandle = builder.AddTypeDefinition(typeDef.Attributes,
                 builder.GetOrAddString(reader.GetString(typeDef.Namespace)),
                 builder.GetOrAddString(reader.GetString(typeDef.Name)),
                 writeContext.TokenMap.MapToken(typeDef.BaseType),
                 writeContext.TokenMap.MapTypeFieldList(Handle),
                 writeContext.TokenMap.MapTypeMethodList(Handle));
+
+            var typeLayout = typeDef.GetLayout();
+            if (!typeLayout.IsDefault)
+                builder.AddTypeLayout(typeDefHandle, (ushort)typeLayout.PackingSize, (uint)typeLayout.Size);
+
+            return typeDefHandle;
         }
 
         public override string ToString()
