@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Platforms>x64;x86</Platforms>
+    <DefineConstants>$(DefineConstants);INCLUDE_EXPECTATIONS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
