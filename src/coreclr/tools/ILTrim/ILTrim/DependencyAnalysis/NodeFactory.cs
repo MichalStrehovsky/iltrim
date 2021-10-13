@@ -33,13 +33,13 @@ namespace ILTrim.DependencyAnalysis
                 case HandleKind.MethodDefinition:
                     return MethodDefinition(module, (MethodDefinitionHandle)handle);
                 case HandleKind.Parameter:
-                    throw new NotImplementedException();
+                    return Parameter(module, (ParameterHandle)handle);
                 case HandleKind.InterfaceImplementation:
                     throw new NotImplementedException();
                 case HandleKind.MemberReference:
                     return MemberReference(module, (MemberReferenceHandle)handle);
                 case HandleKind.Constant:
-                    throw new NotImplementedException();
+                    return Constant(module, (ConstantHandle)handle);
                 case HandleKind.CustomAttribute:
                     return CustomAttribute(module, (CustomAttributeHandle)handle);
                 case HandleKind.DeclarativeSecurityAttribute:
@@ -65,11 +65,11 @@ namespace ILTrim.DependencyAnalysis
                 case HandleKind.ManifestResource:
                     throw new NotImplementedException();
                 case HandleKind.GenericParameter:
-                    throw new NotImplementedException();
+                    return GenericParameter(module, (GenericParameterHandle)handle);
                 case HandleKind.MethodSpecification:
                     return MethodSpecification(module, (MethodSpecificationHandle)handle);
                 case HandleKind.GenericParameterConstraint:
-                    throw new NotImplementedException();
+                    return GenericParameterConstraint(module, (GenericParameterConstraintHandle)handle);
                 default:
                     throw new NotImplementedException();
             }
@@ -121,6 +121,22 @@ namespace ILTrim.DependencyAnalysis
         public MemberReferenceNode MemberReference(EcmaModule module, MemberReferenceHandle handle)
         {
             return _memberReferences.GetOrAdd(new HandleKey<MemberReferenceHandle>(module, handle));
+        }
+
+        NodeCache<HandleKey<ParameterHandle>, ParameterNode> _parameters
+           = new NodeCache<HandleKey<ParameterHandle>, ParameterNode>(key
+               => new ParameterNode(key.Module, key.Handle));
+        public ParameterNode Parameter(EcmaModule module, ParameterHandle handle)
+        {
+            return _parameters.GetOrAdd(new HandleKey<ParameterHandle>(module, handle));
+        }
+
+        NodeCache<HandleKey<ConstantHandle>, ConstantNode> _constants
+            = new NodeCache<HandleKey<ConstantHandle>, ConstantNode>(key
+                => new ConstantNode(key.Module, key.Handle));
+        public ConstantNode Constant(EcmaModule module, ConstantHandle handle)
+        {
+            return _constants.GetOrAdd(new HandleKey<ConstantHandle>(module, handle));
         }
 
         NodeCache<HandleKey<CustomAttributeHandle>, CustomAttributeNode> _customAttributes
@@ -177,6 +193,22 @@ namespace ILTrim.DependencyAnalysis
         public AssemblyReferenceNode AssemblyReference(EcmaModule module, AssemblyReferenceHandle handle)
         {
             return _assemblyReferences.GetOrAdd(new HandleKey<AssemblyReferenceHandle>(module, handle));
+        }
+
+        NodeCache<HandleKey<GenericParameterHandle>, GenericParameterNode> _genericParameters
+           = new NodeCache<HandleKey<GenericParameterHandle>, GenericParameterNode>(key
+               => new GenericParameterNode(key.Module, key.Handle));
+        public GenericParameterNode GenericParameter(EcmaModule module, GenericParameterHandle handle)
+        {
+            return _genericParameters.GetOrAdd(new HandleKey<GenericParameterHandle>(module, handle));
+        }
+
+        NodeCache<HandleKey<GenericParameterConstraintHandle>, GenericParameterConstraintNode> _genericParameterConstraints
+           = new NodeCache<HandleKey<GenericParameterConstraintHandle>, GenericParameterConstraintNode>(key
+               => new GenericParameterConstraintNode(key.Module, key.Handle));
+        public GenericParameterConstraintNode GenericParameterConstraint(EcmaModule module, GenericParameterConstraintHandle handle)
+        {
+            return _genericParameterConstraints.GetOrAdd(new HandleKey<GenericParameterConstraintHandle>(module, handle));
         }
 
         private struct HandleKey<T> : IEquatable<HandleKey<T>> where T : struct, IEquatable<T>
