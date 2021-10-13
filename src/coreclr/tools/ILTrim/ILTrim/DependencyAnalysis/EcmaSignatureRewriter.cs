@@ -249,12 +249,12 @@ namespace ILTrim.DependencyAnalysis
             }
         }
 
-        public static void RewriteMemberSpecSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        public static void RewriteTypeSpecSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
         {
-            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteMemberSpecSignature(blobBuilder);
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteTypeSpecSignature(blobBuilder);
         }
 
-        private void RewriteMemberSpecSignature(BlobBuilder blobBuilder)
+        private void RewriteTypeSpecSignature(BlobBuilder blobBuilder)
         {
             var encoder = new SignatureTypeEncoder(blobBuilder);
             RewriteType(encoder);

@@ -26,7 +26,7 @@ namespace ILTrim.DependencyAnalysis
 
             DependencyList dependencies = new DependencyList();
 
-            EcmaSignatureAnalyzer.AnalyzeSpecSignature(
+            EcmaSignatureAnalyzer.AnalyzeTypeSpecSignature(
                 _module,
                 _module.MetadataReader.GetBlobReader(typeSpec.Signature),
                 factory,
@@ -43,7 +43,7 @@ namespace ILTrim.DependencyAnalysis
 
             var signatureBlob = writeContext.GetSharedBlobBuilder();
 
-            EcmaSignatureRewriter.RewriteMemberSpecSignature(
+            EcmaSignatureRewriter.RewriteTypeSpecSignature(
                 reader.GetBlobReader(typeSpec.Signature),
                 writeContext.TokenMap,
                 signatureBlob);
