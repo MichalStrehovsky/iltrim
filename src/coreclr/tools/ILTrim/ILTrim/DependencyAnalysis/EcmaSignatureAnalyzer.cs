@@ -22,7 +22,7 @@ namespace ILTrim.DependencyAnalysis
         {
             get
             {
-                return _dependenciesOrNull != null ? _dependenciesOrNull : _dependenciesOrNull = new DependencyList();
+                return _dependenciesOrNull ??= new DependencyList();
             }
         }
 
@@ -146,12 +146,12 @@ namespace ILTrim.DependencyAnalysis
         private DependencyList AnalyzeMethodSignature(SignatureHeader header)
         {
             int arity = header.IsGeneric ? _blobReader.ReadCompressedInteger() : 0;
-            int count = _blobReader.ReadCompressedInteger();
+            int paramCount = _blobReader.ReadCompressedInteger();
 
             // Return type
             AnalyzeType();
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < paramCount; i++)
             {
                 AnalyzeType();
             }
