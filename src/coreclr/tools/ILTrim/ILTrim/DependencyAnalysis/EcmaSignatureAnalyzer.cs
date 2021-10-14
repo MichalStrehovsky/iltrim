@@ -6,6 +6,7 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
 using Internal.TypeSystem.Ecma;
+using Internal.TypeSystem;
 
 using DependencyList = ILCompiler.DependencyAnalysisFramework.DependencyNodeCore<ILTrim.DependencyAnalysis.NodeFactory>.DependencyList;
 
@@ -207,6 +208,30 @@ namespace ILTrim.DependencyAnalysis
         private DependencyList AnalyzeTypeSpecSignature()
         {
             AnalyzeType();
+            return _dependenciesOrNull;
+        }
+
+        public static DependencyList AnalyzeMethodSpecSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeMethodSpecSignature();
+        }
+
+        private DependencyList AnalyzeMethodSpecSignature()
+        {
+            if (_blobReader.ReadSignatureHeader().Kind != SignatureKind.MethodSpecification)
+                ThrowHelper.ThrowBadImageFormatException();
+
+            int count = _blobReader.ReadCompressedInteger();
+
+            if (count <= 0)
+                ThrowHelper.ThrowBadImageFormatException();
+
+            TypeDesc[] arguments = new TypeDesc[count];
+            for (int i = 0; i < count; i++)
+            {
+                AnalyzeType();
+            }
+
             return _dependenciesOrNull;
         }
 
