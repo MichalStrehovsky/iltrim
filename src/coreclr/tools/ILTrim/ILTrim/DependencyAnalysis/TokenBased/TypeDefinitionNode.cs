@@ -60,7 +60,8 @@ namespace ILTrim.DependencyAnalysis
             // order as the TypeDefinition table. This allows us to use the same logic in MapTypePropertyList
             // as we have for fields and methods.
             PropertyDefinitionHandle propertyHandle = writeContext.TokenMap.MapTypePropertyList(Handle);
-            builder.AddPropertyMap(Handle, propertyHandle);
+            if (!propertyHandle.IsNil)
+                builder.AddPropertyMap(Handle, propertyHandle);
 
             var typeDefHandle = builder.AddTypeDefinition(typeDef.Attributes,
                 builder.GetOrAddString(reader.GetString(typeDef.Namespace)),

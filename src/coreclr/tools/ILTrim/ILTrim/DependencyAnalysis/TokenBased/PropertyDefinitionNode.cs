@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -27,28 +28,12 @@ namespace ILTrim.DependencyAnalysis
         TypeDefinitionHandle GetDeclaringType()
         {
             MetadataReader reader = _module.MetadataReader;
-
-            foreach (var typeHandle in reader.TypeDefinitions) {
-                TypeDefinition typeDef = reader.GetTypeDefinition(typeHandle);
-                foreach (var propertyHandle in typeDef.GetProperties()) {
-                    if (propertyHandle == Handle)
-                        return typeHandle;
-                }
-            }
-            throw new BadImageFormatException();
-        }
-
-        private bool IsMatchingAccessorMethod(MethodDefinitionHandle methodDefHandle, out bool isSetter)
-        {
-            MetadataReader reader = _module.MetadataReader;
-            PropertyDefinition property = reader.GetPropertyDefinition(Handle);
-            isSetter = false;
-            MethodDefinition methodDef = reader.GetMethodDefinition(methodDefHandle);
-            bool isSpecialName = methodDef.Attributes.HasFlag(MethodAttributes.SpecialName);
-            string methodName = reader.GetString(methodDef.Name);
-            return isSpecialName
-                && (methodName.StartsWith("get_") || (isSetter = methodName.StartsWith("set_")))
-                && methodName.Substring(4) == reader.GetString(property.Name);
+            PropertyAccessors accessors = reader.GetPropertyDefinition(Handle).GetAccessors();
+            MethodDefinitionHandle accessorMethodHandle = !accessors.Getter.IsNil
+                ? accessors.Getter
+                : accessors.Setter;
+            Debug.Assert(!accessorMethodHandle.IsNil);
+            return reader.GetMethodDefinition(accessorMethodHandle).GetDeclaringType();
         }
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
@@ -58,6 +43,8 @@ namespace ILTrim.DependencyAnalysis
             PropertyDefinition property = reader.GetPropertyDefinition(Handle);
 
             TypeDefinitionHandle declaringTypeHandle = GetDeclaringType();
+
+            TypeDefinition declaringType = reader.GetTypeDefinition(declaringTypeHandle);
 
             DependencyList dependencies = new DependencyList();
 
@@ -74,15 +61,12 @@ namespace ILTrim.DependencyAnalysis
                 dependencies.Add(factory.CustomAttribute(_module, customAttribute), "Custom attribute of a property");
             }
 
-            // Property accessors
-            TypeDefinition declaringType = reader.GetTypeDefinition(declaringTypeHandle);
-            foreach (MethodDefinitionHandle methodDefHandle in declaringType.GetMethods())
-            {
-                if (IsMatchingAccessorMethod(methodDefHandle, out _))
-                {
-                    dependencies.Add(factory.MethodDefinition(_module, methodDefHandle), "Property accessor");
-                }
-            }
+            PropertyAccessors accessors = property.GetAccessors();
+            if (!accessors.Getter.IsNil)
+                dependencies.Add(factory.MethodDefinition(_module, accessors.Getter), "Property getter");
+            if (!accessors.Setter.IsNil)
+                dependencies.Add(factory.MethodDefinition(_module, accessors.Setter), "Property setter");
+            Debug.Assert(accessors.Others.Length == 0);
 
             return dependencies;
         }
@@ -98,18 +82,12 @@ namespace ILTrim.DependencyAnalysis
             TypeDefinitionHandle declaringTypeHandle = GetDeclaringType();
 
             // Add MethodSemantics rows to link properties with accessor methods.
-            TypeDefinition declaringType = reader.GetTypeDefinition(declaringTypeHandle);
-            foreach (MethodDefinitionHandle methodDefHandle in declaringType.GetMethods())
-            {
-                if (IsMatchingAccessorMethod(methodDefHandle, out bool isSetter))
-                {
-                    MethodSemanticsAttributes semantics = isSetter
-                        ? MethodSemanticsAttributes.Setter
-                        : MethodSemanticsAttributes.Getter;
-                    // MethodSemantics rows may be added in any order.
-                    builder.AddMethodSemantics(Handle, semantics, methodDefHandle);
-                }
-            }
+            // MethodSemantics rows may be added in any order.
+            PropertyAccessors accessors = property.GetAccessors();
+            if (!accessors.Getter.IsNil)
+                builder.AddMethodSemantics(Handle, MethodSemanticsAttributes.Getter, accessors.Getter);
+            if (!accessors.Setter.IsNil)
+                builder.AddMethodSemantics(Handle, MethodSemanticsAttributes.Setter, accessors.Setter);
 
             BlobBuilder signatureBlob = writeContext.GetSharedBlobBuilder();
             EcmaSignatureRewriter.RewritePropertySignature(

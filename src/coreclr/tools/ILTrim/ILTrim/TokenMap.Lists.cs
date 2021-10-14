@@ -211,23 +211,16 @@ namespace ILTrim
             // Grabbing the mapped token to use as a PropertyList is awkward because
             // S.R.Metadata abstracts away the raw value of the PropertyList field of the record.
             //
-            // All we can do is enumerate the properties on the type, but that might not be useful
-            // if the type has no properties. If the type has no properties, we need to produce
-            // the token of the first property of the next type with properties.
-
+            // All we can do is enumerate the properties on the type. Unlike fields and methods,
+            // the property/type association is stored in a separate table that should not contain
+            // entries for types without properties.
             PropertyDefinitionHandle sourceToken = default;
-            for (TypeDefinitionHandle currentType = typeDefHandle;
-                MetadataTokens.GetRowNumber(currentType) <= _reader.GetTableRowCount(TableIndex.TypeDef);
-                currentType = MetadataTokens.TypeDefinitionHandle(MetadataTokens.GetRowNumber(currentType) + 1))
+            PropertyDefinitionHandleCollection propertyList = _reader.GetTypeDefinition(typeDefHandle).GetProperties();
+            if (propertyList.Count > 0)
             {
-                PropertyDefinitionHandleCollection propertyList = _reader.GetTypeDefinition(currentType).GetProperties();
-                if (propertyList.Count > 0)
-                {
-                    var enumerator = propertyList.GetEnumerator();
-                    enumerator.MoveNext();
-                    sourceToken = enumerator.Current;
-                    break;
-                }
+                var enumerator = propertyList.GetEnumerator();
+                enumerator.MoveNext();
+                sourceToken = enumerator.Current;
             }
 
             PropertyDefinitionHandle result = default;
@@ -248,13 +241,7 @@ namespace ILTrim
                 }
             }
 
-            // If no type after this type has marked properties, we return the number of total properties
-            // in the output plus 1
-            if (result.IsNil)
-            {
-                result = MetadataTokens.PropertyDefinitionHandle(_preAssignedRowIdsPerTable[(int)TableIndex.Property] + 1);
-            }
-
+            // The result token may be nil if this type has no marked properties.
             return result;
         }
     }
