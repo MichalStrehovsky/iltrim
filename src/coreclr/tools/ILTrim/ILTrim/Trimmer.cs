@@ -19,6 +19,7 @@ namespace ILTrim
 {
     public static class Trimmer
     {
+        static bool libraryMode = true;
         public static void TrimAssembly(string inputPath, IReadOnlyList<string> additionalTrimPaths, string outputDir, IReadOnlyList<string> referencePaths)
         {
             var context = new ILTrimTypeSystemContext();
@@ -33,7 +34,7 @@ namespace ILTrim
 
             // Get an interned EcmaModule. Direct call to EcmaModule.Create creates an assembly out of thin air without
             // registering it anywhere and once we deal with multiple assemblies that refer to each other, that's a problem.
-            EcmaModule module = context.GetModuleFromPath (inputPath);
+            EcmaModule module = context.GetModuleFromPath(inputPath); ;
 
             EcmaModule corelib = context.GetModuleForSimpleName("System.Private.CoreLib");
             context.SetSystemModule(corelib);
@@ -41,8 +42,26 @@ namespace ILTrim
             var factory = new NodeFactory(additionalTrimPaths.Select(p => Path.GetFileNameWithoutExtension(p)));
 
             var analyzer = new DependencyAnalyzer<NoLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null);
-            MethodDefinitionHandle entrypointToken = (MethodDefinitionHandle)MetadataTokens.Handle(module.PEReader.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
-            analyzer.AddRoot(factory.MethodDefinition(module, entrypointToken), "Entrypoint");
+            if (!libraryMode)
+            {
+                MethodDefinitionHandle entrypointToken = (MethodDefinitionHandle)MetadataTokens.Handle(module.PEReader.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
+                analyzer.AddRoot(factory.MethodDefinition(module, entrypointToken), "Entrypoint");
+            }
+            else
+            {
+                int rootNumber = 1;
+                foreach(var methodH in module.MetadataReader.MethodDefinitions)
+                {
+                    var method = module.MetadataReader.GetMethodDefinition(methodH);
+                    var type = module.MetadataReader.GetTypeDefinition(method.GetDeclaringType());                    
+                    if(!type.IsNested && method.Attributes.IsPublic())
+                    {
+                        //var mn = $"{module.MetadataReader.GetString(method.Name)}";
+                        analyzer.AddRoot(factory.MethodDefinition(module, methodH), $"LibraryMode_{rootNumber++}");
+                    }
+                }
+
+            }
 
             analyzer.ComputeMarkedNodes();
 
