@@ -32,6 +32,7 @@ namespace ILTrim.DependencyAnalysis
 
         private void RewriteType(SignatureTypeCode typeCode, SignatureTypeEncoder encoder)
         {
+        again:
             switch (typeCode)
             {
                 case SignatureTypeCode.Boolean:
@@ -96,7 +97,8 @@ namespace ILTrim.DependencyAnalysis
                 case SignatureTypeCode.RequiredModifier:
                 case SignatureTypeCode.OptionalModifier:
                     RewriteCustomModifier(typeCode, encoder.CustomModifiers());
-                    break;
+                    typeCode = _blobReader.ReadSignatureTypeCode();
+                    goto again;
                 case SignatureTypeCode.GenericTypeInstance:
                     {
                         int classOrValueType = _blobReader.ReadCompressedInteger();
