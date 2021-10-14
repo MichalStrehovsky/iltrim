@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
-
 using Internal.TypeSystem.Ecma;
 
 namespace ILTrim.DependencyAnalysis
@@ -30,7 +29,7 @@ namespace ILTrim.DependencyAnalysis
             // TODO: Check if FieldDefinition has other references that needed to be added
             yield return new DependencyListEntry(factory.TypeDefinition(_module, declaringType), "Field owning type");
 
-            if((fieldDef.Attributes & FieldAttributes.Literal) == FieldAttributes.Literal)
+            if ((fieldDef.Attributes & FieldAttributes.Literal) == FieldAttributes.Literal)
             {
                 yield return new DependencyListEntry(factory.GetNodeForToken(_module, fieldDef.GetDefaultValue()), "Constant in field definition");
             }
@@ -55,7 +54,7 @@ namespace ILTrim.DependencyAnalysis
 
             if ((fieldDef.Attributes & FieldAttributes.HasFieldRVA) == FieldAttributes.HasFieldRVA)
             {
-                WriteMagicField(fieldDef, writeContext);
+                WriteMagicField(writeContext, fieldDef);
             }
 
             return builder.AddFieldDefinition(
@@ -64,19 +63,31 @@ namespace ILTrim.DependencyAnalysis
                 builder.GetOrAddBlob(signatureBlob));
         }
 
-        unsafe internal void WriteMagicField(FieldDefinition fieldDef, ModuleWritingContext writeContext)
+        unsafe internal void WriteMagicField(ModuleWritingContext writeContext, FieldDefinition fieldDef)
         {
-            MetadataReader reader = _module.MetadataReader;
-
+            var fieldDesc = _module.GetField(Handle);
             int rva = fieldDef.GetRelativeVirtualAddress();
-            if (rva != 0)
+
+            if (fieldDesc.FieldType is EcmaType typeDesc && rva != 0)
             {
                 var rvaBlobReader = _module.PEReader.GetSectionData(rva).Pointer;
-                var classLayoutSize = reader.GetTypeDefinition((TypeDefinitionHandle)writeContext.TokenMap.MapToken(fieldDef.GetDeclaringType())).GetLayout().Size;
-                BlobBuilder outputBodyBuilder = writeContext.fieldBlobBuilder;
-                outputBodyBuilder.WriteBytes(rvaBlobReader, classLayoutSize);
+                int fieldSize = typeDesc.Category switch
+                {
+                    Internal.TypeSystem.TypeFlags.Byte => 1,
+                    Internal.TypeSystem.TypeFlags.Int16 => 2,
+                    Internal.TypeSystem.TypeFlags.Int32 => 4,
+                    Internal.TypeSystem.TypeFlags.Int64 => 8,
+                    _ => typeDesc.EcmaModule.MetadataReader.GetTypeDefinition(typeDesc.Handle).GetLayout().Size
+                };
+                BlobBuilder outputBodyBuilder = writeContext.fieldBuilder;
+                int newRVA = outputBodyBuilder.Count;
+                outputBodyBuilder.WriteBytes(rvaBlobReader, fieldSize);
+                var fieldDefHandle = (FieldDefinitionHandle)writeContext.TokenMap.MapToken(Handle);
+                writeContext.MetadataBuilder.AddFieldRelativeVirtualAddress(
+                    fieldDefHandle,
+                    newRVA);
             }
-        } 
+        }
 
         public override string ToString()
         {

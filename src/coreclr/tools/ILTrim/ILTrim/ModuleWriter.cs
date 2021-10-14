@@ -8,12 +8,10 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 
-using Internal.TypeSystem.Ecma;
-
 using ILCompiler.DependencyAnalysisFramework;
 
 using ILTrim.DependencyAnalysis;
-
+using Internal.TypeSystem.Ecma;
 using Debug = System.Diagnostics.Debug;
 
 namespace ILTrim
@@ -67,7 +65,7 @@ namespace ILTrim
                 headerBuilder,
                 mdRootBuilder,
                 context.MethodBodyEncoder.Builder,
-                mappedFieldData: context.fieldMagicEncoder,
+                mappedFieldData: context.fieldBuilder,
                 entryPoint: (MethodDefinitionHandle)tokenMap.MapToken(sourceEntryPoint));
 
             var o = new BlobBuilder();

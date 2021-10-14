@@ -3,6 +3,7 @@
     <TargetFramework>$(NetCoreAppToolCurrent)</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Platforms>x64;x86</Platforms>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>

@@ -7,9 +7,9 @@ namespace Mono.Linker.Tests.Cases.Basic
 	class FieldRVA
 	{
         [Kept]
-        static ReadOnlySpan<byte> Bytes => new byte[] { 1, 2, 3 };
+        static byte[] Bytes => new byte[] { 1, 2, 3, 4, 5 };
 
         [Kept]
-        static int Main() => Bytes[0];
+        static int Main() => Bytes.Length;
 	}
 }
