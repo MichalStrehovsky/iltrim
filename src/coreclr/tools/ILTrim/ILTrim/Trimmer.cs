@@ -8,6 +8,7 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 
+using Internal.TypeSystem;
 using Internal.TypeSystem.Ecma;
 
 using ILCompiler.DependencyAnalysisFramework;
@@ -42,7 +43,12 @@ namespace ILTrim
 
             var analyzer = new DependencyAnalyzer<NoLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null);
             MethodDefinitionHandle entrypointToken = (MethodDefinitionHandle)MetadataTokens.Handle(module.PEReader.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
+
             analyzer.AddRoot(factory.MethodDefinition(module, entrypointToken), "Entrypoint");
+
+            analyzer.AddRoot(factory.VirtualMethodUse(
+                (EcmaMethod)context.GetWellKnownType(WellKnownType.Object).GetMethod("Finalize", null)),
+                "Finalizer");
 
             analyzer.ComputeMarkedNodes();
 
