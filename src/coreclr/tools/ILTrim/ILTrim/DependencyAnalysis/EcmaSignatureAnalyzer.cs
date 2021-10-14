@@ -66,8 +66,10 @@ namespace ILTrim.DependencyAnalysis
                 case SignatureTypeCode.UIntPtr:
                 case SignatureTypeCode.Object:
                 case SignatureTypeCode.TypedReference:
+                    break;
                 case SignatureTypeCode.GenericTypeParameter:
                 case SignatureTypeCode.GenericMethodParameter:
+                    _blobReader.ReadCompressedInteger();
                     break;
                 case SignatureTypeCode.TypeHandle:
                     Dependencies.Add(_factory.GetNodeForToken(_module, _blobReader.ReadTypeHandle()), "Signature reference");
@@ -178,5 +180,17 @@ namespace ILTrim.DependencyAnalysis
                 return _dependenciesOrNull;
             }
         }
+
+        public static DependencyList AnalyzeTypeSpecSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeTypeSpecSignature();
+        }
+
+        private DependencyList AnalyzeTypeSpecSignature()
+        {
+            AnalyzeType();
+            return _dependenciesOrNull;
+        }
+
     }
 }
