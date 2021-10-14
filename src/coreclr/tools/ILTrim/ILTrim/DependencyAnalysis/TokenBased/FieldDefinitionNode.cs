@@ -65,7 +65,7 @@ namespace ILTrim.DependencyAnalysis
 
             if ((fieldDef.Attributes & FieldAttributes.HasFieldRVA) == FieldAttributes.HasFieldRVA)
             {
-                WriteMagicField(writeContext, fieldDef);
+                WriteRvaData(writeContext, fieldDef.GetRelativeVirtualAddress());
             }
 
             return builder.AddFieldDefinition(
@@ -74,10 +74,9 @@ namespace ILTrim.DependencyAnalysis
                 builder.GetOrAddBlob(signatureBlob));
         }
 
-        unsafe internal void WriteMagicField(ModuleWritingContext writeContext, FieldDefinition fieldDef)
+        unsafe private void WriteRvaData(ModuleWritingContext writeContext, int rva)
         {
             var fieldDesc = _module.GetField(Handle);
-            int rva = fieldDef.GetRelativeVirtualAddress();
 
             if (fieldDesc.FieldType is EcmaType typeDesc && rva != 0)
             {
@@ -90,7 +89,7 @@ namespace ILTrim.DependencyAnalysis
                     Internal.TypeSystem.TypeFlags.Int64 => 8,
                     _ => typeDesc.EcmaModule.MetadataReader.GetTypeDefinition(typeDesc.Handle).GetLayout().Size
                 };
-                BlobBuilder outputBodyBuilder = writeContext.fieldBuilder;
+                BlobBuilder outputBodyBuilder = writeContext.FieldDataBuilder;
                 int currentRVA = outputBodyBuilder.Count;
                 outputBodyBuilder.WriteBytes(rvaBlobReader, fieldSize);
                 writeContext.MetadataBuilder.AddFieldRelativeVirtualAddress(

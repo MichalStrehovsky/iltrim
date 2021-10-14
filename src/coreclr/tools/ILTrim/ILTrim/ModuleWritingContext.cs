@@ -17,7 +17,7 @@ namespace ILTrim
 
         public MetadataBuilder MetadataBuilder { get; } = new MetadataBuilder();
 
-        public BlobBuilder fieldBuilder { get; } = new BlobBuilder();
+        public BlobBuilder FieldDataBuilder { get; } = new BlobBuilder();
 
         public MethodBodyStreamEncoder MethodBodyEncoder { get; } = new MethodBodyStreamEncoder(new BlobBuilder());
 
