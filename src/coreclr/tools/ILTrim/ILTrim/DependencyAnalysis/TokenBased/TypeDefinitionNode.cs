@@ -49,9 +49,13 @@ namespace ILTrim.DependencyAnalysis
             if (typeDef.Attributes.HasFlag(TypeAttributes.SequentialLayout) || typeDef.Attributes.HasFlag(TypeAttributes.ExplicitLayout))
             {
                 // TODO: Postpone marking instance fields on reference types until the type is allocated (i.e. until we have a ConstructedTypeNode for it in the system).
-                foreach (var field in typeDef.GetFields())
+                foreach (var fieldHandle in typeDef.GetFields())
                 {
-                    yield return new DependencyListEntry(factory.FieldDefinition(_module, field), "Instance field of a type with sequential or explicit layout");
+                    var fieldDef = _module.MetadataReader.GetFieldDefinition(fieldHandle);
+                    if (!fieldDef.Attributes.HasFlag(FieldAttributes.Static))
+                    {
+                        yield return new DependencyListEntry(factory.FieldDefinition(_module, fieldHandle), "Instance field of a type with sequential or explicit layout");
+                    }
                 }
             }
 

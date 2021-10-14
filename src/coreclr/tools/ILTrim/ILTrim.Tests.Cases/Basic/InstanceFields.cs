@@ -23,6 +23,8 @@ namespace Mono.Linker.Tests.Cases.Basic
     class TypeWithSequentialLayout
     {
         [Kept]
-        static int Field = 42;
+        int Field = 42;
+
+        static int StaticField = 1;
     }
 }
