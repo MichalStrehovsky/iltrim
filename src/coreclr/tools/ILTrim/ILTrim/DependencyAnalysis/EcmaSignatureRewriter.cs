@@ -246,9 +246,7 @@ namespace ILTrim.DependencyAnalysis
             var encoder = new BlobEncoder(blobBuilder);
             var sigEncoder = encoder.FieldSignature();
 
-            SignatureTypeCode typeCode = _blobReader.ReadSignatureTypeCode();
-            
-            RewriteType(typeCode, sigEncoder);
+            RewriteType(sigEncoder);
         }
 
         public static void RewriteMemberReferenceSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
