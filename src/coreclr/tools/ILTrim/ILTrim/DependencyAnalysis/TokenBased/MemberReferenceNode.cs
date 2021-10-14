@@ -3,7 +3,7 @@
 
 using System.Collections.Generic;
 using System.Reflection.Metadata;
-
+using Internal.TypeSystem;
 using Internal.TypeSystem.Ecma;
 
 namespace ILTrim.DependencyAnalysis
@@ -22,9 +22,32 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
+            var methodOrFieldDef = _module.GetObject(Handle);
             MemberReference memberRef = _module.MetadataReader.GetMemberReference(Handle);
 
             DependencyList dependencies = new DependencyList();
+
+            switch (methodOrFieldDef)
+            {
+                case EcmaMethod method:
+                    if (factory.IsModuleTrimmed(method.Module))
+                    {
+                        dependencies.Add(factory.GetNodeForToken(method.Module, method.Handle), "Target method def of member reference");
+                    }
+                    break;
+
+                case EcmaField field:
+                    if (factory.IsModuleTrimmed(field.Module))
+                    {
+                        dependencies.Add(factory.GetNodeForToken(field.Module, field.Handle), "Target field def of member reference");
+                    }
+                    break;
+            }
+
+            if (!memberRef.Parent.IsNil)
+            {
+                dependencies.Add(factory.GetNodeForToken(_module, memberRef.Parent), "Parent of member reference");
+            }
 
             BlobReader signatureBlob = _module.MetadataReader.GetBlobReader(memberRef.Signature);
             EcmaSignatureAnalyzer.AnalyzeMemberReferenceSignature(
@@ -32,9 +55,6 @@ namespace ILTrim.DependencyAnalysis
                 signatureBlob,
                 factory,
                 dependencies);
-
-            if (!memberRef.Parent.IsNil)
-                dependencies.Add(factory.GetNodeForToken(_module, memberRef.Parent), "Parent of member reference");
 
             return dependencies;
         }

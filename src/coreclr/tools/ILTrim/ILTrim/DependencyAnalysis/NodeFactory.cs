@@ -17,6 +17,13 @@ namespace ILTrim.DependencyAnalysis
     /// </summary>
     public sealed class NodeFactory
     {
+        IReadOnlySet<string> _trimAssemblies { get; }
+
+        public NodeFactory(IEnumerable<string> trimAssemblies)
+        {
+            _trimAssemblies = new HashSet<string>(trimAssemblies);
+        }
+
         /// <summary>
         /// Given a module-qualified token, get the dependency graph node that represent the token.
         /// </summary>
@@ -49,7 +56,7 @@ namespace ILTrim.DependencyAnalysis
                 case HandleKind.EventDefinition:
                     throw new NotImplementedException();
                 case HandleKind.PropertyDefinition:
-                    throw new NotImplementedException();
+                    return PropertyDefinition(module, (PropertyDefinitionHandle)handle);
                 case HandleKind.MethodImplementation:
                     throw new NotImplementedException();
                 case HandleKind.ModuleReference:
@@ -176,6 +183,14 @@ namespace ILTrim.DependencyAnalysis
             return _standaloneSignatures.GetOrAdd(new HandleKey<StandaloneSignatureHandle>(module, handle));
         }
 
+        NodeCache<HandleKey<PropertyDefinitionHandle>, PropertyDefinitionNode> _propertyDefinitions
+            = new NodeCache<HandleKey<PropertyDefinitionHandle>, PropertyDefinitionNode>(key
+                => new PropertyDefinitionNode(key.Module, key.Handle));
+        public PropertyDefinitionNode PropertyDefinition(EcmaModule module, PropertyDefinitionHandle handle)
+        {
+            return _propertyDefinitions.GetOrAdd(new HandleKey<PropertyDefinitionHandle>(module, handle));
+        }
+
         NodeCache<EcmaModule, ModuleDefinitionNode> _moduleDefinitions
             = new NodeCache<EcmaModule, ModuleDefinitionNode>(
                 key => new ModuleDefinitionNode(key));
@@ -230,6 +245,11 @@ namespace ILTrim.DependencyAnalysis
         public GenericParameterConstraintNode GenericParameterConstraint(EcmaModule module, GenericParameterConstraintHandle handle)
         {
             return _genericParameterConstraints.GetOrAdd(new HandleKey<GenericParameterConstraintHandle>(module, handle));
+        }
+
+        public bool IsModuleTrimmed(EcmaModule module)
+        {
+            return _trimAssemblies.Contains(module.Assembly.GetName().Name);
         }
 
         private struct HandleKey<T> : IEquatable<HandleKey<T>> where T : struct, IEquatable<T>

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Metadata;
 
 using Internal.TypeSystem.Ecma;
@@ -43,6 +44,19 @@ namespace ILTrim.DependencyAnalysis
             if (typeDef.IsNested)
             {
                 yield return new DependencyListEntry(factory.TypeDefinition(_module, typeDef.GetDeclaringType()), "Declaring type of a type");
+            }
+
+            if (typeDef.Attributes.HasFlag(TypeAttributes.SequentialLayout) || typeDef.Attributes.HasFlag(TypeAttributes.ExplicitLayout))
+            {
+                // TODO: Postpone marking instance fields on reference types until the type is allocated (i.e. until we have a ConstructedTypeNode for it in the system).
+                foreach (var fieldHandle in typeDef.GetFields())
+                {
+                    var fieldDef = _module.MetadataReader.GetFieldDefinition(fieldHandle);
+                    if (!fieldDef.Attributes.HasFlag(FieldAttributes.Static))
+                    {
+                        yield return new DependencyListEntry(factory.FieldDefinition(_module, fieldHandle), "Instance field of a type with sequential or explicit layout");
+                    }
+                }
             }
 
             var ecmaType = (EcmaType)_module.GetObject(_handle);
@@ -87,6 +101,18 @@ namespace ILTrim.DependencyAnalysis
             TypeDefinition typeDef = reader.GetTypeDefinition(Handle);
 
             var builder = writeContext.MetadataBuilder;
+
+            // Adding PropertyMap entries when writing types ensures that the PropertyMap table has the same
+            // order as the TypeDefinition table. This allows us to use the same logic in MapTypePropertyList
+            // as we have for fields and methods. However, this depends on the properties being written in the
+            // same order as their types which will only be the case if the input assembly had properties sorted
+            // by type.
+            // TODO: Make this work with properties that aren't sorted in the same order as the TypeDef table
+            // (for example by sorting properties by type before emitting them, or by saving PropertyMap rows
+            // in the same order as tehy were in the input assembly.)
+            PropertyDefinitionHandle propertyHandle = writeContext.TokenMap.MapTypePropertyList(Handle);
+            if (!propertyHandle.IsNil)
+                builder.AddPropertyMap(Handle, propertyHandle);
 
             TypeDefinitionHandle outputHandle = builder.AddTypeDefinition(typeDef.Attributes,
                 builder.GetOrAddString(reader.GetString(typeDef.Namespace)),
