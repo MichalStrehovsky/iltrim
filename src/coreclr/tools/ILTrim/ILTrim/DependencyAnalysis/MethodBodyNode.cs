@@ -8,10 +8,11 @@ using System.IO;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
+using Internal.IL;
+using Internal.TypeSystem;
 using Internal.TypeSystem.Ecma;
 
 using ILCompiler.DependencyAnalysisFramework;
-using Internal.IL;
 
 namespace ILTrim.DependencyAnalysis
 {
@@ -40,6 +41,18 @@ namespace ILTrim.DependencyAnalysis
 
             if (!bodyBlock.LocalSignature.IsNil)
                 yield return new DependencyListEntry(factory.StandaloneSignature(_module, bodyBlock.LocalSignature), "Signatures of local variables");
+
+            var exceptionRegions = bodyBlock.ExceptionRegions;
+            if (!bodyBlock.ExceptionRegions.IsEmpty)
+            {
+                foreach (var exceptionRegion in exceptionRegions)
+                {
+                    if (exceptionRegion.Kind != ExceptionRegionKind.Catch)
+                        continue;
+
+                    yield return new DependencyListEntry(factory.GetNodeForToken(_module, exceptionRegion.CatchType), "Catch type of exception region");
+                }
+            }
 
             ILReader ilReader = new(bodyBlock.GetILBytes());
             while (ilReader.HasNext)
@@ -79,9 +92,32 @@ namespace ILTrim.DependencyAnalysis
                     case ILOpcode.refanyval:
                     case ILOpcode.mkrefany:
                     case ILOpcode.constrained:
+                        EntityHandle token = MetadataTokens.EntityHandle(ilReader.ReadILToken());
+
+                        if (opcode == ILOpcode.newobj && _module.TryGetMethod(token) is MethodDesc constructor)
+                        {
+                            TypeDesc owningTypeDefinition = constructor.OwningType.GetTypeDefinition();
+                            if (owningTypeDefinition is EcmaType ecmaOwningType)
+                            {
+                                yield return new(factory.ConstructedType(ecmaOwningType), "Newobj");
+                            }
+                            else
+                            {
+                                Debug.Assert(owningTypeDefinition is ArrayType);
+                            }
+                        }
+
+                        if ((opcode == ILOpcode.callvirt || opcode == ILOpcode.ldvirtftn) &&
+                            _module.TryGetMethod(token) is MethodDesc method && method.IsVirtual)
+                        {
+                            MethodDesc slotMethod = MetadataVirtualMethodAlgorithm.FindSlotDefiningMethodForVirtualMethod(
+                                method.GetTypicalMethodDefinition());
+                            yield return new(factory.VirtualMethodUse((EcmaMethod)slotMethod), "Callvirt/ldvirtftn");
+                        }
+
                         yield return new DependencyListEntry(factory.GetNodeForToken(
                             _module,
-                            MetadataTokens.EntityHandle(ilReader.ReadILToken())),
+                            token),
                             $"Instruction {opcode.ToString()} operand");
                         break;
 
@@ -99,10 +135,23 @@ namespace ILTrim.DependencyAnalysis
                 return -1;
 
             MethodBodyBlock bodyBlock = _module.PEReader.GetMethodBody(rva);
+            var exceptionRegions = bodyBlock.ExceptionRegions;
 
-            // TODO: need to rewrite token references in the exception regions
-            // This would need ControlFlowBuilder and setting up labels and such.
-            // All doable, just more code.
+            // Use small exception regions when the code size of the try block and
+            // the handler code are less than 256 bytes and offsets smaller than 65536 bytes.
+            bool useSmallExceptionRegions = ExceptionRegionEncoder.IsSmallRegionCount(exceptionRegions.Length);
+            if (useSmallExceptionRegions)
+            {
+                foreach (var exceptionRegion in exceptionRegions)
+                {
+                    if (!ExceptionRegionEncoder.IsSmallExceptionRegion(exceptionRegion.TryOffset, exceptionRegion.TryLength) ||
+                        !ExceptionRegionEncoder.IsSmallExceptionRegion(exceptionRegion.HandlerOffset, exceptionRegion.HandlerLength))
+                    {
+                        useSmallExceptionRegions = false;
+                        break;
+                    }
+                }
+            }
 
             BlobBuilder outputBodyBuilder = writeContext.GetSharedBlobBuilder();
             byte[] bodyBytes = bodyBlock.GetILBytes();
@@ -177,11 +226,45 @@ namespace ILTrim.DependencyAnalysis
             MethodBodyStreamEncoder.MethodBody bodyEncoder = writeContext.MethodBodyEncoder.AddMethodBody(
                 outputBodyBuilder.Count,
                 bodyBlock.MaxStack,
-                exceptionRegionCount: 0,
-                hasSmallExceptionRegions: false,
+                exceptionRegionCount: exceptionRegions.Length,
+                hasSmallExceptionRegions: useSmallExceptionRegions,
                 (StandaloneSignatureHandle)writeContext.TokenMap.MapToken(bodyBlock.LocalSignature),
                 bodyBlock.LocalVariablesInitialized ? MethodBodyAttributes.InitLocals : MethodBodyAttributes.None);
             BlobWriter instructionsWriter = new(bodyEncoder.Instructions);
+
+            ExceptionRegionEncoder exceptionRegionEncoder = bodyEncoder.ExceptionRegions;
+            foreach (var exceptionRegion in exceptionRegions)
+            {
+                switch (exceptionRegion.Kind)
+                {
+                    case ExceptionRegionKind.Catch:
+                        exceptionRegionEncoder.AddCatch(
+                            exceptionRegion.TryOffset,
+                            exceptionRegion.TryLength,
+                            exceptionRegion.HandlerOffset,
+                            exceptionRegion.HandlerLength,
+                            writeContext.TokenMap.MapToken(exceptionRegion.CatchType));
+                        break;
+
+                    case ExceptionRegionKind.Filter:
+                        exceptionRegionEncoder.AddFilter(
+                            exceptionRegion.TryOffset,
+                            exceptionRegion.TryLength,
+                            exceptionRegion.HandlerOffset,
+                            exceptionRegion.HandlerLength,
+                            exceptionRegion.FilterOffset);
+                        break;
+
+                    case ExceptionRegionKind.Finally:
+                        exceptionRegionEncoder.AddFinally(
+                            exceptionRegion.TryOffset,
+                            exceptionRegion.TryLength,
+                            exceptionRegion.HandlerOffset,
+                            exceptionRegion.HandlerLength);
+                        break;
+                }
+            }
+
             outputBodyBuilder.WriteContentTo(ref instructionsWriter);
 
             return bodyEncoder.Offset;

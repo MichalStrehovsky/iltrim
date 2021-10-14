@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
-
 using Internal.TypeSystem.Ecma;
 
 namespace ILTrim.DependencyAnalysis
@@ -27,19 +26,27 @@ namespace ILTrim.DependencyAnalysis
             FieldDefinition fieldDef = _module.MetadataReader.GetFieldDefinition(Handle);
             TypeDefinitionHandle declaringType = fieldDef.GetDeclaringType();
 
-            // TODO: Check if FieldDefinition has other references that needed to be added
-            yield return new DependencyListEntry(factory.TypeDefinition(_module, declaringType), "Field owning type");
+            DependencyList dependencies = new DependencyList();
 
-            if((fieldDef.Attributes & FieldAttributes.Literal) == FieldAttributes.Literal)
+            EcmaSignatureAnalyzer.AnalyzeFieldSignature(
+                _module,
+                _module.MetadataReader.GetBlobReader(fieldDef.Signature),
+                factory,
+                dependencies);
+
+            dependencies.Add(factory.TypeDefinition(_module, declaringType), "Field owning type");
+
+            if ((fieldDef.Attributes & FieldAttributes.Literal) == FieldAttributes.Literal)
             {
-                yield return new DependencyListEntry(factory.GetNodeForToken(_module, fieldDef.GetDefaultValue()), "Constant in field definition");
+                dependencies.Add(factory.GetNodeForToken(_module, fieldDef.GetDefaultValue()), "Constant in field definition");
             }
 
             foreach (CustomAttributeHandle customAttribute in fieldDef.GetCustomAttributes())
             {
-                yield return new(factory.CustomAttribute(_module, customAttribute), "Custom attribute of a field");
+                dependencies.Add(factory.CustomAttribute(_module, customAttribute), "Custom attribute of a field");
             }
 
+            return dependencies;
         }
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)
@@ -49,14 +56,46 @@ namespace ILTrim.DependencyAnalysis
             FieldDefinition fieldDef = reader.GetFieldDefinition(Handle);
 
             var builder = writeContext.MetadataBuilder;
+            BlobBuilder signatureBlob = writeContext.GetSharedBlobBuilder();
 
-            // TODO: the signature blob might contain references to tokens we need to rewrite
-            var signatureBlob = reader.GetBlobBytes(fieldDef.Signature);
+            EcmaSignatureRewriter.RewriteFieldSignature(
+                reader.GetBlobReader(fieldDef.Signature),
+                writeContext.TokenMap,
+                signatureBlob);
+
+            if ((fieldDef.Attributes & FieldAttributes.HasFieldRVA) == FieldAttributes.HasFieldRVA)
+            {
+                WriteRvaData(writeContext, fieldDef.GetRelativeVirtualAddress());
+            }
 
             return builder.AddFieldDefinition(
                 fieldDef.Attributes,
                 builder.GetOrAddString(reader.GetString(fieldDef.Name)),
                 builder.GetOrAddBlob(signatureBlob));
+        }
+
+        unsafe private void WriteRvaData(ModuleWritingContext writeContext, int rva)
+        {
+            var fieldDesc = _module.GetField(Handle);
+
+            if (fieldDesc.FieldType is EcmaType typeDesc && rva != 0)
+            {
+                var rvaBlobReader = _module.PEReader.GetSectionData(rva).Pointer;
+                int fieldSize = typeDesc.Category switch
+                {
+                    Internal.TypeSystem.TypeFlags.Byte => 1,
+                    Internal.TypeSystem.TypeFlags.Int16 => 2,
+                    Internal.TypeSystem.TypeFlags.Int32 => 4,
+                    Internal.TypeSystem.TypeFlags.Int64 => 8,
+                    _ => typeDesc.EcmaModule.MetadataReader.GetTypeDefinition(typeDesc.Handle).GetLayout().Size
+                };
+                BlobBuilder outputBodyBuilder = writeContext.FieldDataBuilder;
+                int currentRVA = outputBodyBuilder.Count;
+                outputBodyBuilder.WriteBytes(rvaBlobReader, fieldSize);
+                writeContext.MetadataBuilder.AddFieldRelativeVirtualAddress(
+                    (FieldDefinitionHandle)writeContext.TokenMap.MapToken(Handle),
+                    currentRVA);
+            }
         }
 
         public override string ToString()

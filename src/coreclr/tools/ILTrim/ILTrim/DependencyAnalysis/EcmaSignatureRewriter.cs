@@ -5,6 +5,8 @@ using System;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
+using Internal.TypeSystem;
+
 namespace ILTrim.DependencyAnalysis
 {
     public struct EcmaSignatureRewriter
@@ -32,6 +34,7 @@ namespace ILTrim.DependencyAnalysis
 
         private void RewriteType(SignatureTypeCode typeCode, SignatureTypeEncoder encoder)
         {
+        again:
             switch (typeCode)
             {
                 case SignatureTypeCode.Boolean:
@@ -85,7 +88,18 @@ namespace ILTrim.DependencyAnalysis
                 case SignatureTypeCode.Array:
                     throw new NotImplementedException();
                 case SignatureTypeCode.Pointer:
-                    RewriteType(encoder.Pointer());
+                    {
+                        // Special case void*
+                        SignatureTypeCode pointerInnterTypeCode = _blobReader.ReadSignatureTypeCode();
+                        if (pointerInnterTypeCode == SignatureTypeCode.Void)
+                        {
+                            encoder.VoidPointer();
+                        }
+                        else
+                        {
+                            RewriteType(pointerInnterTypeCode, encoder.Pointer());
+                        }
+                    }
                     break;
                 case SignatureTypeCode.GenericTypeParameter:
                     encoder.GenericTypeParameter(_blobReader.ReadCompressedInteger());
@@ -96,7 +110,8 @@ namespace ILTrim.DependencyAnalysis
                 case SignatureTypeCode.RequiredModifier:
                 case SignatureTypeCode.OptionalModifier:
                     RewriteCustomModifier(typeCode, encoder.CustomModifiers());
-                    break;
+                    typeCode = _blobReader.ReadSignatureTypeCode();
+                    goto again;
                 case SignatureTypeCode.GenericTypeInstance:
                     {
                         int classOrValueType = _blobReader.ReadCompressedInteger();
@@ -119,7 +134,15 @@ namespace ILTrim.DependencyAnalysis
                 case SignatureTypeCode.TypedReference:
                     encoder.PrimitiveType(PrimitiveTypeCode.TypedReference); break;
                 case SignatureTypeCode.FunctionPointer:
-                    throw new NotImplementedException();
+                    {
+                        SignatureHeader header = _blobReader.ReadSignatureHeader();
+                        int arity = header.IsGeneric ? _blobReader.ReadCompressedInteger() : 0;
+                        MethodSignatureEncoder sigEncoder = encoder.FunctionPointer(header.CallingConvention, 0, arity);
+                        int count = _blobReader.ReadCompressedInteger();
+                        sigEncoder.Parameters(count, out ReturnTypeEncoder retTypeEncoder, out ParametersEncoder paramEncoder);
+                        RewriteMethodSignature(count, retTypeEncoder, paramEncoder);
+                    }
+                    break;
                 default:
                     throw new BadImageFormatException();
             }
@@ -189,6 +212,11 @@ namespace ILTrim.DependencyAnalysis
 
             sigEncoder.Parameters(count, out ReturnTypeEncoder returnTypeEncoder, out ParametersEncoder paramsEncoder);
 
+            RewriteMethodSignature(count, returnTypeEncoder, paramsEncoder);
+        }
+
+        private void RewriteMethodSignature(int count, ReturnTypeEncoder returnTypeEncoder, ParametersEncoder paramsEncoder)
+        {
             bool isByRef = false;
         againReturnType:
             SignatureTypeCode typeCode = _blobReader.ReadSignatureTypeCode();
@@ -234,6 +262,25 @@ namespace ILTrim.DependencyAnalysis
             }
         }
 
+        public static void RewriteFieldSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        {
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteFieldSignature(blobBuilder);
+        }
+
+        private void RewriteFieldSignature(BlobBuilder blobBuilder)
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            RewriteFieldSignature(blobBuilder, header);
+        }
+
+        private void RewriteFieldSignature(BlobBuilder blobBuilder, SignatureHeader header)
+        {
+            var encoder = new BlobEncoder(blobBuilder);
+            var sigEncoder = encoder.FieldSignature();
+
+            RewriteType(sigEncoder);
+        }
+
         public static void RewriteMemberReferenceSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
         {
             new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteMemberReferenceSignature(blobBuilder);
@@ -249,7 +296,39 @@ namespace ILTrim.DependencyAnalysis
             else
             {
                 System.Diagnostics.Debug.Assert(header.Kind == SignatureKind.Field);
-                // TODO: fields
+                RewriteFieldSignature(blobBuilder, header);
+            }
+        }
+
+        public static void RewriteTypeSpecSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        {
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteTypeSpecSignature(blobBuilder);
+        }
+
+        private void RewriteTypeSpecSignature(BlobBuilder blobBuilder)
+        {
+            var encoder = new SignatureTypeEncoder(blobBuilder);
+            RewriteType(encoder);
+        }
+
+        public static void RewriteMethodSpecSignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        {
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteMethodSpecSignature(blobBuilder);
+        }
+
+        private void RewriteMethodSpecSignature(BlobBuilder blobBuilder)
+        {
+            var encoder = new BlobEncoder(blobBuilder);
+
+            if (_blobReader.ReadSignatureHeader().Kind != SignatureKind.MethodSpecification)
+                ThrowHelper.ThrowBadImageFormatException();
+
+            int count = _blobReader.ReadCompressedInteger();
+
+            var methodSpecEncoder = encoder.MethodSpecificationSignature(count);
+            for (int i = 0; i < count; i++)
+            {
+                RewriteType(methodSpecEncoder.AddArgument());
             }
         }
 

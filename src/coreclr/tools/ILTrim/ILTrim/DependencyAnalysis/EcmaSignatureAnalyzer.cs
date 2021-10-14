@@ -6,6 +6,7 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
 using Internal.TypeSystem.Ecma;
+using Internal.TypeSystem;
 
 using DependencyList = ILCompiler.DependencyAnalysisFramework.DependencyNodeCore<ILTrim.DependencyAnalysis.NodeFactory>.DependencyList;
 
@@ -46,6 +47,7 @@ namespace ILTrim.DependencyAnalysis
 
         private void AnalyzeType(SignatureTypeCode typeCode)
         {
+        again:
             switch (typeCode)
             {
                 case SignatureTypeCode.Void:
@@ -66,8 +68,10 @@ namespace ILTrim.DependencyAnalysis
                 case SignatureTypeCode.UIntPtr:
                 case SignatureTypeCode.Object:
                 case SignatureTypeCode.TypedReference:
+                    break;
                 case SignatureTypeCode.GenericTypeParameter:
                 case SignatureTypeCode.GenericMethodParameter:
+                    _blobReader.ReadCompressedInteger();
                     break;
                 case SignatureTypeCode.TypeHandle:
                     Dependencies.Add(_factory.GetNodeForToken(_module, _blobReader.ReadTypeHandle()), "Signature reference");
@@ -83,7 +87,8 @@ namespace ILTrim.DependencyAnalysis
                 case SignatureTypeCode.RequiredModifier:
                 case SignatureTypeCode.OptionalModifier:
                     AnalyzeCustomModifier(typeCode);
-                    break;
+                    typeCode = _blobReader.ReadSignatureTypeCode();
+                    goto again;
                 case SignatureTypeCode.GenericTypeInstance:
                     _blobReader.ReadCompressedInteger();
                     Dependencies.Add(_factory.GetNodeForToken(_module, _blobReader.ReadTypeHandle()), "Signature reference");
@@ -94,7 +99,8 @@ namespace ILTrim.DependencyAnalysis
                     }
                     break;
                 case SignatureTypeCode.FunctionPointer:
-                    throw new NotImplementedException();
+                    AnalyzeMethodSignature();
+                    break;
                 default:
                     throw new BadImageFormatException();
             }
@@ -159,6 +165,25 @@ namespace ILTrim.DependencyAnalysis
             return _dependenciesOrNull;
         }
 
+        public static DependencyList AnalyzeFieldSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies = null)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeFieldSignature();
+        }
+
+        private DependencyList AnalyzeFieldSignature()
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            return AnalyzeFieldSignature(header);
+        }
+
+        private DependencyList AnalyzeFieldSignature(SignatureHeader header)
+        {
+            // Return type
+            AnalyzeType();
+
+            return _dependenciesOrNull;
+        }
+
         public static DependencyList AnalyzeMemberReferenceSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies = null)
         {
             return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeMemberReferenceSignature();
@@ -174,9 +199,45 @@ namespace ILTrim.DependencyAnalysis
             else
             {
                 System.Diagnostics.Debug.Assert(header.Kind == SignatureKind.Field);
-                // TODO: field signature
-                return _dependenciesOrNull;
+                return AnalyzeFieldSignature(header);
             }
+        }
+
+        public static DependencyList AnalyzeTypeSpecSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeTypeSpecSignature();
+        }
+
+        private DependencyList AnalyzeTypeSpecSignature()
+        {
+            AnalyzeType();
+            return _dependenciesOrNull;
+        }
+
+        public static DependencyList AnalyzeMethodSpecSignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies)
+        {
+            return new EcmaSignatureAnalyzer(module, blobReader, factory, dependencies).AnalyzeMethodSpecSignature();
+        }
+
+        private DependencyList AnalyzeMethodSpecSignature()
+        {
+
+            //II.23.2.15 MethodSpec GENRICINST GenArgCount Type Type*
+
+            if (_blobReader.ReadSignatureHeader().Kind != SignatureKind.MethodSpecification)
+                ThrowHelper.ThrowBadImageFormatException();
+
+            int count = _blobReader.ReadCompressedInteger();
+
+            if (count <= 0)
+                ThrowHelper.ThrowBadImageFormatException();
+
+            for (int i = 0; i < count; i++)
+            {
+                AnalyzeType();
+            }
+
+            return _dependenciesOrNull;
         }
 
         public static DependencyList AnalyzePropertySignature(EcmaModule module, BlobReader blobReader, NodeFactory factory, DependencyList dependencies = null)

@@ -17,6 +17,13 @@ namespace ILTrim.DependencyAnalysis
     /// </summary>
     public sealed class NodeFactory
     {
+        IReadOnlySet<string> _trimAssemblies { get; }
+
+        public NodeFactory(IEnumerable<string> trimAssemblies)
+        {
+            _trimAssemblies = new HashSet<string>(trimAssemblies);
+        }
+
         /// <summary>
         /// Given a module-qualified token, get the dependency graph node that represent the token.
         /// </summary>
@@ -73,6 +80,20 @@ namespace ILTrim.DependencyAnalysis
                 default:
                     throw new NotImplementedException();
             }
+        }
+
+        NodeCache<EcmaType, ConstructedTypeNode> _constructedTypes = new NodeCache<EcmaType, ConstructedTypeNode>(key
+            => new ConstructedTypeNode(key));
+        public ConstructedTypeNode ConstructedType(EcmaType type)
+        {
+            return _constructedTypes.GetOrAdd(type);
+        }
+
+        NodeCache<EcmaMethod, VirtualMethodUseNode> _virtualMethodUses = new NodeCache<EcmaMethod, VirtualMethodUseNode>(key
+            => new VirtualMethodUseNode(key));
+        public VirtualMethodUseNode VirtualMethodUse(EcmaMethod method)
+        {
+            return _virtualMethodUses.GetOrAdd(method);
         }
 
         NodeCache<HandleKey<TypeReferenceHandle>, TypeReferenceNode> _typeReferences
@@ -217,6 +238,11 @@ namespace ILTrim.DependencyAnalysis
         public GenericParameterConstraintNode GenericParameterConstraint(EcmaModule module, GenericParameterConstraintHandle handle)
         {
             return _genericParameterConstraints.GetOrAdd(new HandleKey<GenericParameterConstraintHandle>(module, handle));
+        }
+
+        public bool IsModuleTrimmed(EcmaModule module)
+        {
+            return _trimAssemblies.Contains(module.Assembly.GetName().Name);
         }
 
         private struct HandleKey<T> : IEquatable<HandleKey<T>> where T : struct, IEquatable<T>
