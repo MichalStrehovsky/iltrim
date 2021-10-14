@@ -4,6 +4,9 @@
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
+using Internal.IL;
+using Internal.TypeSystem.Ecma;
+
 using ILTrim.DependencyAnalysis;
 
 namespace ILTrim
@@ -38,6 +41,28 @@ namespace ILTrim
         {
             _blobBuilder.Clear();
             return _blobBuilder;
+        }
+
+        public int WriteUnreachableMethodBody(MethodDefinitionHandle methodHandle, EcmaModule module)
+        {
+            int rva = module.MetadataReader.GetMethodDefinition(methodHandle).RelativeVirtualAddress;
+            if (rva == 0)
+                return -1;
+            
+            BlobBuilder outputBodyBuilder = GetSharedBlobBuilder();
+            outputBodyBuilder.WriteByte((byte)ILOpcode.ldnull);
+            outputBodyBuilder.WriteByte((byte)ILOpcode.throw_);
+
+            MethodBodyStreamEncoder.MethodBody bodyEncoder = MethodBodyEncoder.AddMethodBody(
+                outputBodyBuilder.Count,
+                maxStack: 1,
+                exceptionRegionCount: 0,
+                hasSmallExceptionRegions: true,
+                localVariablesSignature: default,
+                MethodBodyAttributes.None);
+            BlobWriter instructionsWriter = new(bodyEncoder.Instructions);
+            outputBodyBuilder.WriteContentTo(ref instructionsWriter);
+            return bodyEncoder.Offset;
         }
     }
 }
