@@ -116,7 +116,11 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            DefType baseType = _type.BaseType;
+            TypeDesc baseType = _type.BaseType;
+            if (baseType is InstantiatedType instantiatedType)
+            {
+                baseType = baseType.GetTypeDefinition();
+            }
             if (baseType != null)
             {
                 yield return new(factory.ConstructedType((EcmaType)baseType), "Base type");
