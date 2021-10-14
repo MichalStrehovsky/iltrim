@@ -47,7 +47,7 @@ namespace ILTrim.DependencyAnalysis
             MethodBodyBlock bodyBlock = _module.PEReader.GetMethodBody(rva);
 
             if (!bodyBlock.LocalSignature.IsNil)
-                _dependencies.Add(new(factory.StandaloneSignature(_module, bodyBlock.LocalSignature), "Signatures of local variables"));
+                _dependencies.Add(factory.StandaloneSignature(_module, bodyBlock.LocalSignature), "Signatures of local variables");
 
             ILReader ilReader = new(bodyBlock.GetILBytes());
             while (ilReader.HasNext)
@@ -94,7 +94,7 @@ namespace ILTrim.DependencyAnalysis
                             TypeDesc owningTypeDefinition = constructor.OwningType.GetTypeDefinition();
                             if (owningTypeDefinition is EcmaType ecmaOwningType)
                             {
-                                _dependencies.Add(new(factory.ConstructedType(ecmaOwningType), "Newobj"));
+                                _dependencies.Add(factory.ConstructedType(ecmaOwningType), "Newobj");
                             }
                             else
                             {
@@ -107,13 +107,13 @@ namespace ILTrim.DependencyAnalysis
                         {
                             MethodDesc slotMethod = MetadataVirtualMethodAlgorithm.FindSlotDefiningMethodForVirtualMethod(
                                 method.GetTypicalMethodDefinition());
-                            _dependencies.Add(new(factory.VirtualMethodUse((EcmaMethod)slotMethod), "Callvirt/ldvirtftn"));
+                            _dependencies.Add(factory.VirtualMethodUse((EcmaMethod)slotMethod), "Callvirt/ldvirtftn");
                         }
 
-                        _dependencies.Add(new(factory.GetNodeForToken(
+                        _dependencies.Add(factory.GetNodeForToken(
                             _module,
                             token),
-                            $"Instruction {opcode.ToString()} operand"));
+                            $"Instruction {opcode.ToString()} operand");
                         break;
 
                     default:
