@@ -45,6 +45,15 @@ namespace ILTrim.DependencyAnalysis
                 yield return new DependencyListEntry(factory.TypeDefinition(_module, typeDef.GetDeclaringType()), "Declaring type of a type");
             }
 
+            var type = _module.GetType(Handle);
+            if (type.IsEnum)
+            {
+                foreach (var field in typeDef.GetFields())
+                {
+                    yield return new DependencyListEntry(factory.FieldDefinition(_module, field), "Field of enum type");
+                }
+            }
+
             var ecmaType = (EcmaType)_module.GetObject(_handle);
             if (ecmaType.IsValueType)
             {
