@@ -93,9 +93,8 @@ namespace ILTrim.DependencyAnalysis
                 BlobBuilder outputBodyBuilder = writeContext.fieldBuilder;
                 int newRVA = outputBodyBuilder.Count;
                 outputBodyBuilder.WriteBytes(rvaBlobReader, fieldSize);
-                var fieldDefHandle = (FieldDefinitionHandle)writeContext.TokenMap.MapToken(Handle);
                 writeContext.MetadataBuilder.AddFieldRelativeVirtualAddress(
-                    fieldDefHandle,
+                    (FieldDefinitionHandle)writeContext.TokenMap.MapToken(Handle),
                     newRVA);
             }
         }
