@@ -22,6 +22,16 @@ namespace ILTrim.DependencyAnalysis
 
         private MethodDefinitionHandle Handle => (MethodDefinitionHandle)_handle;
 
+        public bool IsInstanceMethodOnReferenceType {
+            get {
+                MethodDefinition methodDef = _module.MetadataReader.GetMethodDefinition(Handle);
+                TypeDefinitionHandle declaringType = methodDef.GetDeclaringType();
+                EcmaType ecmaType = (EcmaType)_module.GetObject(declaringType);
+                return !ecmaType.IsValueType && !methodDef.Attributes.HasFlag(MethodAttributes.Static);
+
+            }
+        }
+
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
             MethodDefinition methodDef = _module.MetadataReader.GetMethodDefinition(Handle);
@@ -37,8 +47,7 @@ namespace ILTrim.DependencyAnalysis
 
             dependencies.Add(factory.TypeDefinition(_module, declaringType), "Method owning type");
 
-            EcmaType ecmaType = (EcmaType)_module.GetObject(declaringType);
-            if (ecmaType.IsValueType || methodDef.Attributes.HasFlag(MethodAttributes.Static))
+            if (!IsInstanceMethodOnReferenceType)
             {
                 // Static methods and methods on value types are not subject to the unused method body optimization.
                 dependencies.Add(factory.MethodBody(_module, Handle), "Method body");
@@ -63,14 +72,7 @@ namespace ILTrim.DependencyAnalysis
         }
 
         // Instance methods on reference types conditionally depend on their bodies.
-        public override bool HasConditionalStaticDependencies {
-            get {
-                MethodDefinition methodDef = _module.MetadataReader.GetMethodDefinition(Handle);
-                TypeDefinitionHandle declaringType = methodDef.GetDeclaringType();
-                EcmaType ecmaType = (EcmaType)_module.GetObject(declaringType);
-                return !ecmaType.IsValueType && !methodDef.Attributes.HasFlag(MethodAttributes.Static);
-            }
-        }
+        public override bool HasConditionalStaticDependencies => IsInstanceMethodOnReferenceType;
 
         public override IEnumerable<CombinedDependencyListEntry> GetConditionalStaticDependencies(NodeFactory factory)
         {

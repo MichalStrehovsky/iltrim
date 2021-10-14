@@ -43,11 +43,18 @@ namespace ILTrim
             return _blobBuilder;
         }
 
+        int? _unreachableBodyOffset;
+
         public int WriteUnreachableMethodBody(MethodDefinitionHandle methodHandle, EcmaModule module)
         {
+            if (_unreachableBodyOffset != null)
+                return _unreachableBodyOffset.Value;
+
             int rva = module.MetadataReader.GetMethodDefinition(methodHandle).RelativeVirtualAddress;
-            if (rva == 0)
-                return -1;
+            if (rva == 0) {
+                _unreachableBodyOffset = -1;
+                return _unreachableBodyOffset.Value;
+            }
             
             BlobBuilder outputBodyBuilder = GetSharedBlobBuilder();
             outputBodyBuilder.WriteByte((byte)ILOpcode.ldnull);
@@ -62,7 +69,8 @@ namespace ILTrim
                 MethodBodyAttributes.None);
             BlobWriter instructionsWriter = new(bodyEncoder.Instructions);
             outputBodyBuilder.WriteContentTo(ref instructionsWriter);
-            return bodyEncoder.Offset;
+            _unreachableBodyOffset = bodyEncoder.Offset;
+            return _unreachableBodyOffset.Value;
         }
     }
 }

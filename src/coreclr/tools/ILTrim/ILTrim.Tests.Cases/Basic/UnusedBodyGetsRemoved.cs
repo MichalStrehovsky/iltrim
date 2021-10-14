@@ -7,8 +7,10 @@ namespace Mono.Linker.Tests.Cases.Basic
 		public static void Main ()
 		{
 			UnusedBodyType unusedBody = null;
-			if (unusedBody != null)
+			if (unusedBody != null) {
 				unusedBody.UnusedBody();
+				unusedBody.UnusedBody2();
+			}
 		}
 
 		class UnusedBodyType
@@ -19,6 +21,13 @@ namespace Mono.Linker.Tests.Cases.Basic
 				"throw"
 			})]
 			public void UnusedBody () => DoSomethingExpensive ();
+
+			[Kept]
+			[ExpectedInstructionSequence(new[] {
+				"ldnull",
+				"throw"
+			})]
+			public void UnusedBody2 () => DoSomethingExpensive ();
 
 			static void DoSomethingExpensive () { }
 		}
