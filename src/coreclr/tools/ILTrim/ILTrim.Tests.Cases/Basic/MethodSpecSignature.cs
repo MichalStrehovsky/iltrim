@@ -14,6 +14,7 @@ namespace Mono.Linker.Tests.Cases.Basic
         [Kept]
         class SomeType
         {
+            [Kept]
             public static void SomeMethod<T>() { }
         }
 

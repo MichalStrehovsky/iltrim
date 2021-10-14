@@ -218,6 +218,9 @@ namespace ILTrim.DependencyAnalysis
 
         private DependencyList AnalyzeMethodSpecSignature()
         {
+
+            //II.23.2.15 MethodSpec GENRICINST GenArgCount Type Type*
+
             if (_blobReader.ReadSignatureHeader().Kind != SignatureKind.MethodSpecification)
                 ThrowHelper.ThrowBadImageFormatException();
 
@@ -226,7 +229,6 @@ namespace ILTrim.DependencyAnalysis
             if (count <= 0)
                 ThrowHelper.ThrowBadImageFormatException();
 
-            TypeDesc[] arguments = new TypeDesc[count];
             for (int i = 0; i < count; i++)
             {
                 AnalyzeType();

@@ -289,8 +289,10 @@ namespace ILTrim.DependencyAnalysis
         private void RewriteMethodSpecSignature(BlobBuilder blobBuilder)
         {
             var encoder = new BlobEncoder(blobBuilder);
+
             if (_blobReader.ReadSignatureHeader().Kind != SignatureKind.MethodSpecification)
                 ThrowHelper.ThrowBadImageFormatException();
+
             int count = _blobReader.ReadCompressedInteger();
 
             var methodSpecEncoder = encoder.MethodSpecificationSignature(count);
