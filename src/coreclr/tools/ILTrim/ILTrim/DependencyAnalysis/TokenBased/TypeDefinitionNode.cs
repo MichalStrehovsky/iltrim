@@ -66,7 +66,12 @@ namespace ILTrim.DependencyAnalysis
 
             // Adding PropertyMap entries when writing types ensures that the PropertyMap table has the same
             // order as the TypeDefinition table. This allows us to use the same logic in MapTypePropertyList
-            // as we have for fields and methods.
+            // as we have for fields and methods. However, this depends on the properties being written in the
+            // same order as their types which will only be the case if the input assembly had properties sorted
+            // by type.
+            // TODO: Make this work with properties that aren't sorted in the same order as the TypeDef table
+            // (for example by sorting properties by type before emitting them, or by saving PropertyMap rows
+            // in the same order as tehy were in the input assembly.)
             PropertyDefinitionHandle propertyHandle = writeContext.TokenMap.MapTypePropertyList(Handle);
             if (!propertyHandle.IsNil)
                 builder.AddPropertyMap(Handle, propertyHandle);

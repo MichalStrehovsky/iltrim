@@ -79,26 +79,36 @@ namespace ILTrim.DependencyAnalysis
 
             var builder = writeContext.MetadataBuilder;
 
-            TypeDefinitionHandle declaringTypeHandle = GetDeclaringType();
-
-            // Add MethodSemantics rows to link properties with accessor methods.
-            // MethodSemantics rows may be added in any order.
-            PropertyAccessors accessors = property.GetAccessors();
-            if (!accessors.Getter.IsNil)
-                builder.AddMethodSemantics(Handle, MethodSemanticsAttributes.Getter, accessors.Getter);
-            if (!accessors.Setter.IsNil)
-                builder.AddMethodSemantics(Handle, MethodSemanticsAttributes.Setter, accessors.Setter);
-
             BlobBuilder signatureBlob = writeContext.GetSharedBlobBuilder();
             EcmaSignatureRewriter.RewritePropertySignature(
                 reader.GetBlobReader(property.Signature),
                 writeContext.TokenMap,
                 signatureBlob);
 
-            return builder.AddProperty(
+            PropertyDefinitionHandle targetPropertyHandle = builder.AddProperty(
                 property.Attributes,
                 builder.GetOrAddString(reader.GetString(property.Name)),
                 builder.GetOrAddBlob(signatureBlob));
+
+            // Add MethodSemantics rows to link properties with accessor methods.
+            // MethodSemantics rows may be added in any order.
+            PropertyAccessors accessors = property.GetAccessors();
+            if (!accessors.Getter.IsNil)
+            {
+                builder.AddMethodSemantics(
+                    targetPropertyHandle,
+                    MethodSemanticsAttributes.Getter,
+                    (MethodDefinitionHandle)writeContext.TokenMap.MapToken(accessors.Getter));
+            }
+            if (!accessors.Setter.IsNil)
+            {
+                builder.AddMethodSemantics(
+                    targetPropertyHandle,
+                    MethodSemanticsAttributes.Setter,
+                    (MethodDefinitionHandle)writeContext.TokenMap.MapToken(accessors.Setter));
+            }
+
+            return targetPropertyHandle;
         }
 
         public override string ToString()
