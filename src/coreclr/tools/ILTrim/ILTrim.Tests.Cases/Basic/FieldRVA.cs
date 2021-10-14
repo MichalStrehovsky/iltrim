@@ -7,9 +7,7 @@ namespace Mono.Linker.Tests.Cases.Basic
 	class FieldRVA
 	{
         [Kept]
-        static byte[] Bytes => new byte[] { 1, 2, 3, 4, 5 };
-
-        [Kept]
-        static int Main() => Bytes.Length;
+        [KeptInitializerData]
+        static int Main() => new byte[] { 1, 2, 3, 4, 5 }.Length;
 	}
 }
