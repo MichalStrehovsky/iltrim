@@ -137,6 +137,22 @@ namespace ILTrim.DependencyAnalysis
             MethodBodyBlock bodyBlock = _module.PEReader.GetMethodBody(rva);
             var exceptionRegions = bodyBlock.ExceptionRegions;
 
+            // Use small exception regions when the code size of the try block and
+            // the handler code are less than 256 bytes and offsets smaller than 65536 bytes.
+            bool useSmallExceptionRegions = ExceptionRegionEncoder.IsSmallRegionCount(exceptionRegions.Length);
+            if (useSmallExceptionRegions)
+            {
+                foreach (var exceptionRegion in exceptionRegions)
+                {
+                    if (!ExceptionRegionEncoder.IsSmallExceptionRegion(exceptionRegion.TryOffset, exceptionRegion.TryLength) ||
+                        !ExceptionRegionEncoder.IsSmallExceptionRegion(exceptionRegion.HandlerOffset, exceptionRegion.HandlerLength))
+                    {
+                        useSmallExceptionRegions = false;
+                        break;
+                    }
+                }
+            }
+
             BlobBuilder outputBodyBuilder = writeContext.GetSharedBlobBuilder();
             byte[] bodyBytes = bodyBlock.GetILBytes();
             ILReader ilReader = new ILReader(bodyBytes);
@@ -211,7 +227,7 @@ namespace ILTrim.DependencyAnalysis
                 outputBodyBuilder.Count,
                 bodyBlock.MaxStack,
                 exceptionRegionCount: exceptionRegions.Length,
-                hasSmallExceptionRegions: false,
+                hasSmallExceptionRegions: useSmallExceptionRegions,
                 (StandaloneSignatureHandle)writeContext.TokenMap.MapToken(bodyBlock.LocalSignature),
                 bodyBlock.LocalVariablesInitialized ? MethodBodyAttributes.InitLocals : MethodBodyAttributes.None);
             BlobWriter instructionsWriter = new(bodyEncoder.Instructions);
