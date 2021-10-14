@@ -91,11 +91,11 @@ namespace ILTrim.DependencyAnalysis
                     _ => typeDesc.EcmaModule.MetadataReader.GetTypeDefinition(typeDesc.Handle).GetLayout().Size
                 };
                 BlobBuilder outputBodyBuilder = writeContext.fieldBuilder;
-                int newRVA = outputBodyBuilder.Count;
+                int currentRVA = outputBodyBuilder.Count;
                 outputBodyBuilder.WriteBytes(rvaBlobReader, fieldSize);
                 writeContext.MetadataBuilder.AddFieldRelativeVirtualAddress(
                     (FieldDefinitionHandle)writeContext.TokenMap.MapToken(Handle),
-                    newRVA);
+                    currentRVA);
             }
         }
 
