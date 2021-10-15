@@ -22,6 +22,7 @@ namespace ILTrim
             LogStrategy logStrategy = LogStrategy.None;
             string logFile = null;
             int? parallelism = null;
+            bool libraryMode = false;
 
             ArgumentSyntax argSyntax = ArgumentSyntax.Parse(args, syntax =>
             {
@@ -57,6 +58,8 @@ namespace ILTrim
                 syntax.DefineOption("parallelism", ref p, requireValue: false, "Degree of parallelism");
                 parallelism = p == -1 ? null : p;
 
+                syntax.DefineOption("library", ref libraryMode, "Use library mode for the input assembly");
+
                 syntax.DefineParameter("input", ref input, "The input assembly");
             });
 
@@ -66,7 +69,8 @@ namespace ILTrim
             var settings = new TrimmerSettings(
                 MaxDegreeOfParallelism: parallelism,
                 LogStrategy: logStrategy,
-                LogFile: logFile);
+                LogFile: logFile,
+                LibraryMode: libraryMode);
             Trimmer.TrimAssembly(
                 input.Trim(),
                 trimAssemblies,
