@@ -46,6 +46,17 @@ namespace ILTrim.DependencyAnalysis
                 dependencies.Add(factory.CustomAttribute(_module, customAttribute), "Custom attribute of a field");
             }
 
+            var type = _module.GetType(declaringType);
+            var typeDef = _module.MetadataReader.GetTypeDefinition(declaringType);
+            var staticCtor = type.GetStaticConstructor();
+            if (staticCtor is EcmaMethod cctor &&
+                typeDef.Attributes.HasFlag(TypeAttributes.BeforeFieldInit) &&
+                fieldDef.Attributes.HasFlag(FieldAttributes.Static))
+            {
+                dependencies.Add(factory.MethodDefinition(_module, cctor.Handle), "Static constructor of a type with kept static fields");
+
+            }
+
             return dependencies;
         }
 
