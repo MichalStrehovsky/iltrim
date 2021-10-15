@@ -34,7 +34,7 @@ namespace ILTrim
             settings = settings ?? new TrimmerSettings();
 
             Dictionary<string, string> references = new();
-            foreach (var path in additionalTrimPaths.Concat(referencePaths))
+            foreach (var path in additionalTrimPaths.Concat(referencePaths ?? Enumerable.Empty<string>()))
             {
                 var simpleName = Path.GetFileNameWithoutExtension(path);
                 references.Add(simpleName, path);
