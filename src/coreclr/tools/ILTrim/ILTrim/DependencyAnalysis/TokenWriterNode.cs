@@ -21,8 +21,15 @@ namespace ILTrim.DependencyAnalysis
     {
         protected readonly EcmaModule _module;
 
-        // Each metadata table index should have a unique node type. Nodes with
-        // the same table index must be the same node type.
+        /// <summary>
+        /// Gets the module associated with this node.
+        /// </summary>
+        public EcmaModule Module => _module;
+
+        /// <summary>
+        /// Each metadata table index should have a unique node type. Nodes with
+        /// the same table index must be the same node type.
+        /// </summary>
         public abstract TableIndex TableIndex { get; }
 
         public TokenWriterNode(EcmaModule module)

@@ -4,7 +4,7 @@ using Mono.Linker.Tests.Cases.Expectations.Metadata;
 
 namespace Mono.Linker.Tests.Cases.MultiAssembly
 {
-    [SetupLinkerAction ("link", "Forwarder")]
+    [SetupLinkerAction ("link", "ForwardedType")]
     [SetupCompileBefore("Forwarder.dll", new[] { "Dependencies/ForwardedType.cs" })]
 
     [SetupCompileAfter ("ForwardedType.dll", new[] { "Dependencies/ForwardedType.cs" })]
@@ -12,6 +12,8 @@ namespace Mono.Linker.Tests.Cases.MultiAssembly
 
     [KeptMemberInAssembly("ForwardedType.dll", typeof(ForwardedType), "Kept()")]
     [KeptMemberInAssembly("ForwardedType.dll", typeof(ForwardedType), nameof(ForwardedType.KeptField))]
+
+    [RemovedAssemblyReference("test", "Forwarder")]
     public class ForwarderReference
     {
         public static void Main()

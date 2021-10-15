@@ -29,11 +29,6 @@ namespace ILTrim.DependencyAnalysis
             }
         }
 
-        /// <summary>
-        /// Gets the module associated with this node.
-        /// </summary>
-        public EcmaModule Module => _module;
-
         public TokenBasedNode(EcmaModule module, EntityHandle handle)
             : base(module)
         {
@@ -43,7 +38,6 @@ namespace ILTrim.DependencyAnalysis
         public sealed override void Write(ModuleWritingContext writeContext)
         {
             EntityHandle writtenHandle = WriteInternal(writeContext);
-            // TODO: clean? kinda shared with base.
             Debug.Assert(writeContext.TokenMap.MapToken(_handle) == writtenHandle);
         }
 
