@@ -42,8 +42,9 @@ namespace ILTrim.DependencyAnalysis
 
         public abstract void BuildTokens(TokenMap.Builder builder);
 
-        // This should be overridden in every derived class.
-        public virtual int CompareTo(TokenWriterNode other)
+        public abstract int CompareTo(TokenWriterNode other);
+
+        protected int CompareToHelper(TokenWriterNode other)
         {
             return TableIndex.CompareTo(other.TableIndex);
         }

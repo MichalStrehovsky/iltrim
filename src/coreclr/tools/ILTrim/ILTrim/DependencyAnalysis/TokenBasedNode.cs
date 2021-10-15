@@ -54,18 +54,21 @@ namespace ILTrim.DependencyAnalysis
 
         public override int CompareTo(TokenWriterNode other)
         {
-            int baseResult = base.CompareTo(other);
-            if (baseResult != 0)
+            if (other is TokenBasedNode otherTokenBasedNode)
+            {
+                int result = MetadataTokens.GetToken(_handle).CompareTo(MetadataTokens.GetToken(otherTokenBasedNode._handle));
+
+                // It's only valid to compare these within the same module
+                Debug.Assert(result != 0 || this == other);
+                return result;
+            }
+            else
+            {
+                int baseResult = base.CompareToHelper(other);
+                // Different node types should have different table indices.
+                Debug.Assert(baseResult != 0);
                 return baseResult;
-
-            // Nodes with the same table index must be the same node type.
-            var otherTokenBasedNode = (TokenBasedNode)other;
-            int result = MetadataTokens.GetToken(_handle).CompareTo(MetadataTokens.GetToken(otherTokenBasedNode._handle));
-
-            // It's only valid to compare these within the same module
-            Debug.Assert(result != 0 || this == other);
-
-            return result;
+            }
         }
 
         protected sealed override string GetName(NodeFactory context)

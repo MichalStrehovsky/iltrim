@@ -78,19 +78,23 @@ namespace ILTrim.DependencyAnalysis
         }
 
         public override int CompareTo(TokenWriterNode other) {
-            int baseResult = base.CompareTo(other);
-            if (baseResult != 0)
+            if (other is AssemblyReferenceNode otherAssemblyReferenceNode)
+            {
+                // All AssemblyReferenceNodes should have the same table index.
+                Debug.Assert(base.CompareToHelper(other) == 0);
+                // Sort by simple assembly name.
+                int result = _reference.GetName().Name.CompareTo(otherAssemblyReferenceNode._reference.GetName().Name);
+                // It's only valid to compare these within the same module
+                Debug.Assert(result != 0 || this == other);
+                return result;
+            }
+            else
+            {
+                int baseResult = base.CompareToHelper(other);
+                // Different node types should have different table indices.
+                Debug.Assert(baseResult != 0);
                 return baseResult;
-
-            // Nodes with the same table index must be the same node type.
-            var otherAssemblyReferenceNode = (AssemblyReferenceNode)other;
-            // Sort by simple assembly name.
-            int result = _reference.GetName().Name.CompareTo(otherAssemblyReferenceNode._reference.GetName().Name);
-
-            // It's only valid to compare these within the same module
-            Debug.Assert(result != 0 || this == other);
-
-            return result;
+            }
         }
 
         protected override string GetName(NodeFactory context)
