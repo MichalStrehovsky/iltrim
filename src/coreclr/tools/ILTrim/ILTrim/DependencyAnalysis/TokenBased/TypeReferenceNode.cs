@@ -42,7 +42,13 @@ namespace ILTrim.DependencyAnalysis
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            yield return new(GetResolutionScopeNode(factory), "Resolution scope of a type reference");
+            yield return new(GetResolutionScopeNode(factory), "Resolution Scope of a type reference");
+
+            var typeDescObject = _module.GetObject(Handle);
+            if (typeDescObject is EcmaType typeDef && factory.IsModuleTrimmed(typeDef.EcmaModule))
+            {
+                yield return new(factory.GetNodeForToken(typeDef.EcmaModule, typeDef.Handle), "Target of a type reference");
+            }
         }
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)
