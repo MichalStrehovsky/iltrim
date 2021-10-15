@@ -8,12 +8,10 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 
-using Internal.TypeSystem.Ecma;
-
 using ILCompiler.DependencyAnalysisFramework;
 
 using ILTrim.DependencyAnalysis;
-
+using Internal.TypeSystem.Ecma;
 using Debug = System.Diagnostics.Debug;
 
 namespace ILTrim
@@ -26,6 +24,8 @@ namespace ILTrim
         private readonly NodeFactory _factory;
         private readonly EcmaModule _module;
         private readonly List<TokenBasedNode> _tokensToWrite;
+
+        public string AssemblyName => _module.Assembly.GetName().Name;
 
         private ModuleWriter(NodeFactory factory, EcmaModule module, List<TokenBasedNode> tokensToWrite)
             => (_factory, _module, _tokensToWrite) = (factory, module, tokensToWrite);
@@ -67,6 +67,7 @@ namespace ILTrim
                 headerBuilder,
                 mdRootBuilder,
                 context.MethodBodyEncoder.Builder,
+                mappedFieldData: context.FieldDataBuilder,
                 entryPoint: (MethodDefinitionHandle)tokenMap.MapToken(sourceEntryPoint));
 
             var o = new BlobBuilder();

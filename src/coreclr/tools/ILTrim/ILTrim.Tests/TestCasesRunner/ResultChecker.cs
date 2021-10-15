@@ -196,18 +196,24 @@ namespace Mono.Linker.Tests.TestCasesRunner
         {
             private readonly Dictionary<string, string> _assemblyPaths = new();
             private readonly Dictionary<string, PEReader> _assemblyReaders = new();
-            public Resolver(PEReader mainAssemblyReader, string mainAssemblyName)
+            public Resolver(PEReader mainAssemblyReader, string mainAssemblyName, string extraDllsPath)
             {
                 _assemblyReaders.Add(mainAssemblyName, mainAssemblyReader);
 
-                var netcoreappDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-                foreach (var assembly in Directory.EnumerateFiles(netcoreappDir))
+                foreach (var assembly in Directory.EnumerateFiles(extraDllsPath, "*.dll"))
                 {
-                    if (Path.GetExtension(assembly) != ".dll")
-                        continue;
                     var assemblyName = Path.GetFileNameWithoutExtension(assembly);
-                    if (assemblyName.Contains("Native"))
+                    _assemblyPaths.Add(assemblyName, assembly);
+                }
+
+                var netcoreappDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+                foreach (var assembly in Directory.EnumerateFiles(netcoreappDir, "*.dll"))
+                {
+                    var assemblyName = Path.GetFileNameWithoutExtension(assembly);
+                    if (assemblyName.Contains("Native") || assemblyName == mainAssemblyName)
+                    {
                         continue;
+                    }
                     if (assemblyName.StartsWith("Microsoft") ||
                         assemblyName.StartsWith("System") ||
                         assemblyName == "mscorlib" || assemblyName == "netstandard")
@@ -237,14 +243,17 @@ namespace Mono.Linker.Tests.TestCasesRunner
 
         protected virtual void AdditionalChecking (TrimmedTestCaseResult linkResult, AssemblyDefinition original)
         {
-            using var peReader = new PEReader(File.OpenRead(linkResult.OutputAssemblyPath.ToString()));
-            var verifier = new Verifier(
-                new Resolver(peReader, linkResult.OutputAssemblyPath.FileNameWithoutExtension),
-                new VerifierOptions() { });
-            verifier.SetSystemModuleName(typeof(object).Assembly.GetName());
-            foreach (var result in verifier.Verify(peReader))
+            if (!HasAttribute(original.MainModule.GetType(linkResult.TestCase.ReconstructedFullTypeName), nameof(SkipILVerifyAttribute)))
             {
-                Assert.True(false, $"IL Verififaction failed: {result.Message}{Environment.NewLine}Type token: {MetadataTokens.GetToken(result.Type):x}, Method token: {MetadataTokens.GetToken(result.Method):x}");
+                using var peReader = new PEReader(File.OpenRead(linkResult.OutputAssemblyPath.ToString()));
+                var verifier = new Verifier(
+                    new Resolver(peReader, linkResult.OutputAssemblyPath.FileNameWithoutExtension, linkResult.OutputAssemblyPath.Parent.ToString()),
+                    new VerifierOptions() { });
+                verifier.SetSystemModuleName(typeof(object).Assembly.GetName());
+                foreach (var result in verifier.Verify(peReader))
+                {
+                    Assert.True(false, $"IL Verififaction failed: {result.Message}{Environment.NewLine}Type token: {MetadataTokens.GetToken(result.Type):x}, Method token: {MetadataTokens.GetToken(result.Method):x}");
+                }
             }
         }
 
