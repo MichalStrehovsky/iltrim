@@ -46,7 +46,9 @@ namespace ILTrim
             EcmaModule corelib = context.GetModuleForSimpleName("System.Private.CoreLib");
             context.SetSystemModule(corelib);
 
-            var factory = new NodeFactory(additionalTrimPaths.Select(p => Path.GetFileNameWithoutExtension(p)));
+            var trimmedAssemblies = new List<string>(additionalTrimPaths.Select(p => Path.GetFileNameWithoutExtension(p)));
+            trimmedAssemblies.Add(Path.GetFileNameWithoutExtension(inputPath));
+            var factory = new NodeFactory(trimmedAssemblies);
 
             DependencyAnalyzerBase<NodeFactory> analyzer = settings.LogStrategy switch
             {
