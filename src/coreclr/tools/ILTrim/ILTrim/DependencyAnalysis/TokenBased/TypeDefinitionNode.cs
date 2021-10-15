@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Metadata;
 
 using Internal.TypeSystem.Ecma;
@@ -54,12 +55,52 @@ namespace ILTrim.DependencyAnalysis
                 }
             }
 
+            if (typeDef.Attributes.HasFlag(TypeAttributes.SequentialLayout) || typeDef.Attributes.HasFlag(TypeAttributes.ExplicitLayout))
+            {
+                // TODO: Postpone marking instance fields on reference types until the type is allocated (i.e. until we have a ConstructedTypeNode for it in the system).
+                foreach (var fieldHandle in typeDef.GetFields())
+                {
+                    var fieldDef = _module.MetadataReader.GetFieldDefinition(fieldHandle);
+                    if (!fieldDef.Attributes.HasFlag(FieldAttributes.Static))
+                    {
+                        yield return new DependencyListEntry(factory.FieldDefinition(_module, fieldHandle), "Instance field of a type with sequential or explicit layout");
+                    }
+                }
+            }
+
             var ecmaType = (EcmaType)_module.GetObject(_handle);
             if (ecmaType.IsValueType)
             {
                 // It's difficult to track where a valuetype gets boxed so consider always constructed
                 // for now (it's on par with IL Linker).
                 yield return new(factory.ConstructedType(ecmaType), "Implicitly constructed valuetype");
+            }
+        }
+
+        public override bool HasConditionalStaticDependencies
+        {
+            get
+            {
+                return _module.MetadataReader.GetTypeDefinition(Handle).GetInterfaceImplementations().Count > 0;
+            }
+        }
+
+        public override IEnumerable<CombinedDependencyListEntry> GetConditionalStaticDependencies(NodeFactory factory)
+        {
+            MetadataReader reader = _module.MetadataReader;
+            TypeDefinition typeDef = reader.GetTypeDefinition(Handle);
+
+            foreach (InterfaceImplementationHandle intfImplHandle in typeDef.GetInterfaceImplementations())
+            {
+                InterfaceImplementation intfImpl = reader.GetInterfaceImplementation(intfImplHandle);
+                EcmaType interfaceType = _module.TryGetType(intfImpl.Interface)?.GetTypeDefinition() as EcmaType;
+                if (interfaceType != null)
+                {
+                    yield return new(
+                        factory.GetNodeForToken(_module, intfImpl.Interface),
+                        factory.InterfaceUse(interfaceType),
+                        "Implemented interface");
+                }
             }
         }
 
@@ -70,21 +111,44 @@ namespace ILTrim.DependencyAnalysis
 
             var builder = writeContext.MetadataBuilder;
 
-            if (typeDef.IsNested)
-                builder.AddNestedType((TypeDefinitionHandle)writeContext.TokenMap.MapToken(Handle), (TypeDefinitionHandle)writeContext.TokenMap.MapToken(typeDef.GetDeclaringType()));
+            // Adding PropertyMap entries when writing types ensures that the PropertyMap table has the same
+            // order as the TypeDefinition table. This allows us to use the same logic in MapTypePropertyList
+            // as we have for fields and methods. However, this depends on the properties being written in the
+            // same order as their types which will only be the case if the input assembly had properties sorted
+            // by type.
+            // TODO: Make this work with properties that aren't sorted in the same order as the TypeDef table
+            // (for example by sorting properties by type before emitting them, or by saving PropertyMap rows
+            // in the same order as tehy were in the input assembly.)
+            PropertyDefinitionHandle propertyHandle = writeContext.TokenMap.MapTypePropertyList(Handle);
+            if (!propertyHandle.IsNil)
+                builder.AddPropertyMap(Handle, propertyHandle);
 
-            var typeDefHandle = builder.AddTypeDefinition(typeDef.Attributes,
+            TypeDefinitionHandle outputHandle = builder.AddTypeDefinition(typeDef.Attributes,
                 builder.GetOrAddString(reader.GetString(typeDef.Namespace)),
                 builder.GetOrAddString(reader.GetString(typeDef.Name)),
                 writeContext.TokenMap.MapToken(typeDef.BaseType),
                 writeContext.TokenMap.MapTypeFieldList(Handle),
                 writeContext.TokenMap.MapTypeMethodList(Handle));
 
+            if (typeDef.IsNested)
+                builder.AddNestedType(outputHandle, (TypeDefinitionHandle)writeContext.TokenMap.MapToken(typeDef.GetDeclaringType()));
+
             var typeLayout = typeDef.GetLayout();
             if (!typeLayout.IsDefault)
-                builder.AddTypeLayout(typeDefHandle, (ushort)typeLayout.PackingSize, (uint)typeLayout.Size);
+                builder.AddTypeLayout(outputHandle, (ushort)typeLayout.PackingSize, (uint)typeLayout.Size);
 
-            return typeDefHandle;
+            foreach (InterfaceImplementationHandle intfImplHandle in typeDef.GetInterfaceImplementations())
+            {
+                InterfaceImplementation intfImpl = reader.GetInterfaceImplementation(intfImplHandle);
+                EcmaType interfaceType = _module.TryGetType(intfImpl.Interface)?.GetTypeDefinition() as EcmaType;
+                if (interfaceType != null && writeContext.Factory.InterfaceUse(interfaceType).Marked)
+                {
+                    builder.AddInterfaceImplementation(outputHandle,
+                        writeContext.TokenMap.MapToken(intfImpl.Interface));
+                }
+            }
+
+            return outputHandle;
         }
 
         public override string ToString()

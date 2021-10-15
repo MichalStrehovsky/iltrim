@@ -4,6 +4,7 @@
 using System;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
+using System.Collections.Immutable;
 
 using Internal.TypeSystem;
 
@@ -86,7 +87,24 @@ namespace ILTrim.DependencyAnalysis
                     RewriteType(encoder.SZArray());
                     break;
                 case SignatureTypeCode.Array:
-                    throw new NotImplementedException();
+                    //ECMA Spec for Array: type rank boundsCount bound1 …loCount lo1 …
+                    encoder.Array(out var arrayEncoder, out var shapeEncoder);
+                    RewriteType(arrayEncoder);
+
+                    var rank = _blobReader.ReadCompressedInteger();
+
+                    var boundsCount = _blobReader.ReadCompressedInteger();
+                    int[] bounds = boundsCount > 0 ? new int[boundsCount] : Array.Empty<int>();
+                    for (int i = 0; i < boundsCount; i++)
+                        bounds[i] = _blobReader.ReadCompressedInteger();
+
+                    var lowerBoundsCount = _blobReader.ReadCompressedInteger();
+                    int[] lowerBounds = lowerBoundsCount > 0 ? new int[lowerBoundsCount] : Array.Empty<int>();
+                    for (int j = 0; j < lowerBoundsCount; j++)
+                        lowerBounds[j] = _blobReader.ReadCompressedSignedInteger();
+
+                    shapeEncoder.Shape(rank, ImmutableArray.Create<int>(bounds), ImmutableArray.Create<int>(lowerBounds));
+                    break;
                 case SignatureTypeCode.Pointer:
                     {
                         // Special case void*
@@ -148,14 +166,29 @@ namespace ILTrim.DependencyAnalysis
             }
         }
 
-        public static void RewriteLocalVariableBlob(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        public static void RewriteStandaloneSignatureBlob(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
         {
-            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteLocalVariableBlob(blobBuilder);
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewriteStandaloneSignatureBlob(blobBuilder);
         }
 
-        private void RewriteLocalVariableBlob(BlobBuilder blobBuilder)
+        private void RewriteStandaloneSignatureBlob(BlobBuilder blobBuilder)
         {
             SignatureHeader header = _blobReader.ReadSignatureHeader();
+            switch (header.Kind)
+            {
+                case SignatureKind.Method:
+                    RewriteMethodSignature(blobBuilder, header);
+                    break;
+                case SignatureKind.LocalVariables:
+                    RewriteLocalVariablesBlob(blobBuilder, header);
+                    break;
+                default:
+                    throw new BadImageFormatException();
+            }
+        }
+
+        private void RewriteLocalVariablesBlob(BlobBuilder blobBuilder, SignatureHeader header)
+        {
             int varCount = _blobReader.ReadCompressedInteger();
             var encoder = new BlobEncoder(blobBuilder);
             var localEncoder = encoder.LocalVariableSignature(varCount);
@@ -203,7 +236,11 @@ namespace ILTrim.DependencyAnalysis
             int arity = header.IsGeneric ? _blobReader.ReadCompressedInteger() : 0;
             var encoder = new BlobEncoder(blobBuilder);
             var sigEncoder = encoder.MethodSignature(header.CallingConvention, arity, header.IsInstance);
+            RewriteMethodSignature(sigEncoder);
+        }
 
+        private void RewriteMethodSignature(MethodSignatureEncoder sigEncoder)
+        {
             int count = _blobReader.ReadCompressedInteger();
 
             sigEncoder.Parameters(count, out ReturnTypeEncoder returnTypeEncoder, out ParametersEncoder paramsEncoder);
@@ -328,5 +365,22 @@ namespace ILTrim.DependencyAnalysis
             }
         }
 
+        public static void RewritePropertySignature(BlobReader signatureReader, TokenMap tokenMap, BlobBuilder blobBuilder)
+        {
+            new EcmaSignatureRewriter(signatureReader, tokenMap).RewritePropertySignature(blobBuilder);
+        }
+
+        private void RewritePropertySignature(BlobBuilder blobBuilder)
+        {
+            SignatureHeader header = _blobReader.ReadSignatureHeader();
+            RewritePropertySignature(blobBuilder, header);
+        }
+
+        private void RewritePropertySignature(BlobBuilder blobBuilder, SignatureHeader header)
+        {
+            var encoder = new BlobEncoder(blobBuilder);
+            var sigEncoder = encoder.PropertySignature(header.IsInstance);
+            RewriteMethodSignature(sigEncoder);
+        }
     }
 }
