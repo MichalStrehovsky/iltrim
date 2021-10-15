@@ -12,6 +12,7 @@ namespace Mono.Linker.Tests.Cases.Basic
             new AllocatedTypeWithFinalizer();
         }
 
+        [Kept]
         static void MentionUnallocatedType(UnallocatedTypeWithFinalizer u) { }
 
         [Kept]
@@ -22,6 +23,7 @@ namespace Mono.Linker.Tests.Cases.Basic
         }
 
         [Kept]
+        [KeptMember(".ctor()")]
         class AllocatedTypeWithFinalizer
         {
             [Kept]
