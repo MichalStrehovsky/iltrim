@@ -67,9 +67,9 @@ namespace ILTrim.DependencyAnalysis
                 Debug.Assert(_ownerCodedIndex >= 0 && otherGenericParameter._ownerCodedIndex >= 0);
 
                 if (_ownerCodedIndex == otherGenericParameter._ownerCodedIndex)
-                    return _index - otherGenericParameter._index;
+                    return _index.CompareTo(otherGenericParameter._index);
                 else
-                    return _ownerCodedIndex - otherGenericParameter._ownerCodedIndex;
+                    return _ownerCodedIndex.CompareTo(otherGenericParameter._ownerCodedIndex);
             }
             else
             {
