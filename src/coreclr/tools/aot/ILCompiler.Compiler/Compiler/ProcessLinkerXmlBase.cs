@@ -16,7 +16,7 @@ namespace ILCompiler
     /// </summary>
     internal abstract class ProcessLinkerXmlBase
     {
-        private readonly XmlReader _reader;
+        protected readonly XmlReader _reader;
         private readonly ModuleDesc _owningModule;
         private readonly IReadOnlyDictionary<string, bool> _featureSwitchValues;
         protected readonly TypeSystemContext _context;
@@ -129,7 +129,7 @@ namespace ILCompiler
             _reader.ReadEndElement();
         }
 
-        private void ProcessType(ModuleDesc assembly)
+        protected virtual void ProcessType(ModuleDesc assembly)
         {
             if (ShouldProcessElement())
             {
@@ -170,7 +170,7 @@ namespace ILCompiler
             _reader.Skip();
         }
 
-        private void ProcessMethod(TypeDesc type)
+        protected void ProcessMethod(TypeDesc type)
         {
             if (ShouldProcessElement())
             {
@@ -212,7 +212,7 @@ namespace ILCompiler
         {
         }
 
-        private void ProcessField(TypeDesc type)
+        protected void ProcessField(TypeDesc type)
         {
             if (ShouldProcessElement())
             {
@@ -279,7 +279,7 @@ namespace ILCompiler
             return sb.ToString();
         }
 
-        private bool ShouldProcessElement()
+        protected bool ShouldProcessElement()
         {
             string feature = _reader.GetAttribute("feature");
             if (string.IsNullOrEmpty(feature))
