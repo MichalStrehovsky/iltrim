@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
@@ -15,7 +16,6 @@ using ILCompiler.DependencyAnalysisFramework;
 using ILTrim.DependencyAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
-using System;
 
 namespace ILTrim
 {
@@ -48,7 +48,14 @@ namespace ILTrim
 
             var factory = new NodeFactory(additionalTrimPaths.Select(p => Path.GetFileNameWithoutExtension(p)));
 
-            var analyzer = new DependencyAnalyzer<NoLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null);
+            DependencyAnalyzerBase<NodeFactory> analyzer = settings.LogStrategy switch
+            {
+                LogStrategy.None => new DependencyAnalyzer<NoLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null),
+                LogStrategy.FirstMark => new DependencyAnalyzer<FirstMarkLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null),
+                LogStrategy.FullGraph => new DependencyAnalyzer<FullGraphLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null),
+                LogStrategy.EventSource => new DependencyAnalyzer<EventSourceLogStrategy<NodeFactory>, NodeFactory>(factory, resultSorter: null),
+                _ => throw new ArgumentException("Invalid log strategy")
+            };
             analyzer.ComputeDependencyRoutine += ComputeDependencyNodeDependencies;
 
             MethodDefinitionHandle entrypointToken = (MethodDefinitionHandle)MetadataTokens.Handle(module.PEReader.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
@@ -57,6 +64,8 @@ namespace ILTrim
             analyzer.ComputeMarkedNodes();
 
             var writers = ModuleWriter.CreateWriters(factory, analyzer.MarkedNodeList);
+            if (!File.Exists(outputDir))
+                Directory.CreateDirectory(outputDir);
             RunForEach(writers, writer =>
             {
                 var ext = writer.AssemblyName == "test" ? ".exe" : ".dll";
@@ -64,6 +73,11 @@ namespace ILTrim
                 using var outputStream = File.OpenWrite(outputPath);
                 writer.Save(outputStream);
             });
+
+            if (settings.LogFile != null) {
+                using var logStream = File.OpenWrite(settings.LogFile);
+                DgmlWriter.WriteDependencyGraphToStream<NodeFactory>(logStream, analyzer, factory);
+            }
 
             void ComputeDependencyNodeDependencies(List<DependencyNodeCore<NodeFactory>> nodesWithPendingDependencyCalculation) =>
                 RunForEach(
