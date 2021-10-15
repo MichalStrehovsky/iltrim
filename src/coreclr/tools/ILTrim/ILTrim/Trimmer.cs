@@ -63,11 +63,9 @@ namespace ILTrim
 
             MethodDefinitionHandle entrypointToken = (MethodDefinitionHandle)MetadataTokens.Handle(module.PEReader.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
 
-            analyzer.AddRoot(factory.MethodDefinition(module, entrypointToken), "Entrypoint");
+            AddCorLibRoots(analyzer, factory, context);
 
-            analyzer.AddRoot(factory.VirtualMethodUse(
-                (EcmaMethod)context.GetWellKnownType(WellKnownType.Object).GetMethod("Finalize", null)),
-                "Finalizer");
+            analyzer.AddRoot(factory.MethodDefinition(module, entrypointToken), "Entrypoint");
 
             analyzer.ComputeMarkedNodes();
 
@@ -107,6 +105,23 @@ namespace ILTrim
                         action);
                 }
             }
+        }
+
+        private static void AddCorLibRoots(DependencyAnalyzerBase<NodeFactory> analyzer, NodeFactory factory, ILTrimTypeSystemContext context)
+        {
+            // root types that are an essential part of corlib
+            foreach (var wkt in Enum.GetValues<WellKnownType>())
+            {
+                if (wkt == WellKnownType.Unknown)
+                    continue;
+
+                var type = (EcmaType)context.GetWellKnownType(wkt);
+                analyzer.AddRoot(factory.TypeDefinition(type.EcmaModule, type.Handle), "corelib well-known type");
+            }
+
+            analyzer.AddRoot(factory.VirtualMethodUse(
+                (EcmaMethod)context.GetWellKnownType(WellKnownType.Object).GetMethod("Finalize", null)),
+                "Finalizer");
         }
     }
 }
