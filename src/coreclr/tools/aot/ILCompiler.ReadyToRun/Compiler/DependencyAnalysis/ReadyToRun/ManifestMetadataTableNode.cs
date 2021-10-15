@@ -291,7 +291,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                     hashValue: default(BlobHandle) /* TODO */);
             }
 
-            MetadataRootBuilder metadataRootBuilder = new MetadataRootBuilder(metadataBuilder);
+            MetadataRootBuilder metadataRootBuilder = new MetadataRootBuilder(metadataBuilder, suppressValidation: true);
             BlobBuilder metadataBlobBuilder = new BlobBuilder();
             metadataRootBuilder.Serialize(metadataBlobBuilder, methodBodyStreamRva: 0, mappedFieldDataStreamRva: 0);
 
