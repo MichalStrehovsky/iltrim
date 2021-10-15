@@ -93,6 +93,7 @@ namespace ILTrim
             // Serialize to the output PE file
             // TODO: instead of the default header, copy flags from the source module
             var headerBuilder = PEHeaderBuilder.CreateExecutableHeader();
+            // Workaround for https://github.com/dotnet/runtime/issues/60454
             var mdRootBuilder = new MetadataRootBuilder(context.MetadataBuilder, suppressValidation: true);
             var peBuilder = new ManagedPEBuilder(
                 headerBuilder,

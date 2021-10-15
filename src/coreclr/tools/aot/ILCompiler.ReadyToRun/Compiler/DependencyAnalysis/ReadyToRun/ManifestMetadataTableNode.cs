@@ -291,6 +291,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                     hashValue: default(BlobHandle) /* TODO */);
             }
 
+            // Workaround for https://github.com/dotnet/runtime/issues/60454
             MetadataRootBuilder metadataRootBuilder = new MetadataRootBuilder(metadataBuilder, suppressValidation: true);
             BlobBuilder metadataBlobBuilder = new BlobBuilder();
             metadataRootBuilder.Serialize(metadataBlobBuilder, methodBodyStreamRva: 0, mappedFieldDataStreamRva: 0);
