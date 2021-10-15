@@ -32,10 +32,10 @@ namespace ILTrim
 
         public void Save(Stream outputStream)
         {
-            List<TokenBasedNode> earlySortedTokens = new();
+            List<TokenWriterNode> earlySortedTokens = new();
             List<TokenBasedNodeWithDelayedSort> delaySortedTokens = new();
 
-            foreach (TokenBasedNode token in _tokensToWrite)
+            foreach (TokenWriterNode token in _tokensToWrite)
             {
                 if (token is TokenBasedNodeWithDelayedSort delaySortedToken)
                 {
@@ -52,7 +52,7 @@ namespace ILTrim
 
             // Ask each of the output nodes to assign their tokens in the output.
             var tokenMapBuilder = new TokenMap.Builder(_module.MetadataReader);
-            foreach (TokenBasedNode node in earlySortedTokens)
+            foreach (TokenWriterNode node in earlySortedTokens)
             {
                 node.BuildTokens(tokenMapBuilder);
             }

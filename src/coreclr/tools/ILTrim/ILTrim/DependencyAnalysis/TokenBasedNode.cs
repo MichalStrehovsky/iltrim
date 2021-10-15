@@ -14,12 +14,20 @@ using ILCompiler.DependencyAnalysisFramework;
 namespace ILTrim.DependencyAnalysis
 {
     /// <summary>
-    /// Base class for all nodes that have an associated row in one of the metadata tables.
+    /// Base class for all nodes that have an associated row in one of the metadata tables
+    /// of the input module.
     /// </summary>
-    public abstract class TokenBasedNode : DependencyNodeCore<NodeFactory>, IComparable<TokenBasedNode>
+    public abstract class TokenBasedNode : TokenWriterNode
     {
         protected readonly EntityHandle _handle;
-        protected readonly EcmaModule _module;
+
+        public override TableIndex TableIndex {
+            get {
+                bool gotIndex = MetadataTokens.TryGetTableIndex(_handle.Kind, out TableIndex index);
+                Debug.Assert(gotIndex);
+                return index;
+            }
+        }
 
         /// <summary>
         /// Gets the module associated with this node.
@@ -27,30 +35,32 @@ namespace ILTrim.DependencyAnalysis
         public EcmaModule Module => _module;
 
         public TokenBasedNode(EcmaModule module, EntityHandle handle)
+            : base(module)
         {
-            _module = module;
             _handle = handle;
         }
 
-        /// <summary>
-        /// Writes the node to the output using the specified writing context.
-        /// </summary>
-        public void Write(ModuleWritingContext writeContext)
+        public sealed override void Write(ModuleWritingContext writeContext)
         {
             EntityHandle writtenHandle = WriteInternal(writeContext);
+            // TODO: clean? kinda shared with base.
             Debug.Assert(writeContext.TokenMap.MapToken(_handle) == writtenHandle);
         }
 
-        protected abstract EntityHandle WriteInternal(ModuleWritingContext writeContext);
-
-        public void BuildTokens(TokenMap.Builder builder)
+        public sealed override void BuildTokens(TokenMap.Builder builder)
         {
             builder.AddTokenMapping(_handle);
         }
 
-        public virtual int CompareTo(TokenBasedNode other)
+        public override int CompareTo(TokenWriterNode other)
         {
-            int result = MetadataTokens.GetToken(_handle).CompareTo(MetadataTokens.GetToken(other._handle));
+            int baseResult = base.CompareTo(other);
+            if (baseResult != 0)
+                return baseResult;
+
+            // Nodes with the same table index must be the same node type.
+            var otherTokenBasedNode = (TokenBasedNode)other;
+            int result = MetadataTokens.GetToken(_handle).CompareTo(MetadataTokens.GetToken(otherTokenBasedNode._handle));
 
             // It's only valid to compare these within the same module
             Debug.Assert(result != 0 || this == other);
@@ -65,14 +75,5 @@ namespace ILTrim.DependencyAnalysis
             string moduleName = reader.GetString(reader.GetModuleDefinition().Name);
             return $"{this.ToString()} ({moduleName}:{tokenRaw:X8})";
         }
-
-        public abstract override string ToString();
-
-        public sealed override bool InterestingForDynamicDependencyAnalysis => false;
-        public sealed override bool HasDynamicDependencies => false;
-        public override bool HasConditionalStaticDependencies => false;
-        public sealed override bool StaticDependenciesAreComputed => true;
-        public override IEnumerable<CombinedDependencyListEntry> GetConditionalStaticDependencies(NodeFactory context) => null;
-        public sealed override IEnumerable<CombinedDependencyListEntry> SearchDynamicDependencies(List<DependencyNodeCore<NodeFactory>> markedNodes, int firstNode, NodeFactory context) => null;
     }
 }

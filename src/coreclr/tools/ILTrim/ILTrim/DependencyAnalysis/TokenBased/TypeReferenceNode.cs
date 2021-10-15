@@ -23,11 +23,26 @@ namespace ILTrim.DependencyAnalysis
 
         private TypeReferenceHandle Handle => (TypeReferenceHandle)_handle;
 
-        public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
+        TokenWriterNode GetResolutionScopeNode(NodeFactory factory)
         {
             TypeReference typeRef = _module.MetadataReader.GetTypeReference(Handle);
 
-            yield return new(factory.GetNodeForToken(_module, typeRef.ResolutionScope), "Resolution Scope of a type reference");
+            if (typeRef.ResolutionScope.Kind == HandleKind.AssemblyReference)
+            {
+                // Resolve to an EcmaType to go through any forwarders.
+                var ecmaType = (EcmaType)_module.GetObject(Handle);
+                EcmaAssembly referencedAssembly = (EcmaAssembly)ecmaType.EcmaModule;
+                return factory.AssemblyReference(_module, referencedAssembly);
+            }
+            else
+            {
+                return factory.GetNodeForToken(_module, typeRef.ResolutionScope);
+            }
+        }
+
+        public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
+        {
+            yield return new(GetResolutionScopeNode(factory), "Resolution scope of a type reference");
         }
 
         protected override EntityHandle WriteInternal(ModuleWritingContext writeContext)
@@ -36,8 +51,19 @@ namespace ILTrim.DependencyAnalysis
             TypeReference typeRef = reader.GetTypeReference(Handle);
 
             var builder = writeContext.MetadataBuilder;
+            TokenWriterNode resolutionScopeNode = GetResolutionScopeNode(writeContext.Factory);
+            EntityHandle targetResolutionScopeToken;
+            if (resolutionScopeNode is AssemblyReferenceNode assemblyRefNode)
+            {
+                Debug.Assert(assemblyRefNode.TargetToken.HasValue);
+                targetResolutionScopeToken = (EntityHandle)assemblyRefNode.TargetToken.Value;
+            }
+            else
+            {
+                targetResolutionScopeToken = writeContext.TokenMap.MapToken(typeRef.ResolutionScope);
+            }
 
-            return builder.AddTypeReference(writeContext.TokenMap.MapToken(typeRef.ResolutionScope),
+            return builder.AddTypeReference(targetResolutionScopeToken,
                 builder.GetOrAddString(reader.GetString(typeRef.Namespace)),
                 builder.GetOrAddString(reader.GetString(typeRef.Name)));
         }
