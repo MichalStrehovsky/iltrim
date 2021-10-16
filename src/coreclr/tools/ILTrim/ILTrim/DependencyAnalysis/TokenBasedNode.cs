@@ -44,8 +44,6 @@ namespace ILTrim.DependencyAnalysis
             Debug.Assert(writeContext.TokenMap.MapToken(_handle) == writtenHandle);
         }
 
-        protected abstract EntityHandle WriteInternal(ModuleWritingContext writeContext);
-
         public override void BuildTokens(TokenMap.Builder builder)
         {
             builder.AddTokenMapping(_handle);
