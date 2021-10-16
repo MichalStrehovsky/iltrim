@@ -35,13 +35,18 @@ namespace ILTrim.DependencyAnalysis
             _handle = handle;
         }
 
-        public sealed override void Write(ModuleWritingContext writeContext)
+        /// <summary>
+        /// Writes the node to the output using the specified writing context.
+        /// </summary>
+        public override void Write(ModuleWritingContext writeContext)
         {
             EntityHandle writtenHandle = WriteInternal(writeContext);
             Debug.Assert(writeContext.TokenMap.MapToken(_handle) == writtenHandle);
         }
 
-        public sealed override void BuildTokens(TokenMap.Builder builder)
+        protected abstract EntityHandle WriteInternal(ModuleWritingContext writeContext);
+
+        public override void BuildTokens(TokenMap.Builder builder)
         {
             builder.AddTokenMapping(_handle);
         }
