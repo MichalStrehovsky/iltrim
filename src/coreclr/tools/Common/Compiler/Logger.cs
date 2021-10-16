@@ -11,7 +11,9 @@ using Internal.TypeSystem.Ecma;
 
 using ILCompiler.Logging;
 
+#if !TRIMMER
 using ILSequencePoint = Internal.IL.ILSequencePoint;
+#endif
 using MethodIL = Internal.IL.MethodIL;
 
 namespace ILCompiler
@@ -67,6 +69,7 @@ namespace ILCompiler
             string document = null;
             int? lineNumber = null;
 
+#if !TRIMMER
             IEnumerable<ILSequencePoint> sequencePoints = origin.GetDebugInfo()?.GetSequencePoints();
             if (sequencePoints != null)
             {
@@ -79,6 +82,7 @@ namespace ILCompiler
                     }
                 }
             }
+#endif
 
             MethodDesc warnedMethod = CompilerGeneratedState.GetUserDefinedMethodForCompilerGeneratedMember(origin.OwningMethod) ?? origin.OwningMethod;
 
@@ -189,9 +193,14 @@ namespace ILCompiler
         private static string GetModuleFileName(ModuleDesc module)
         {
             string assemblyName = module.Assembly.GetName().Name;
+#if TRIMMER
+            var context = (ILTrim.ILTrimTypeSystemContext)module.Context;
+            if (context.ReferenceFilePaths.TryGetValue(assemblyName, out string result))
+#else
             var context = (CompilerTypeSystemContext)module.Context;
             if (context.ReferenceFilePaths.TryGetValue(assemblyName, out string result)
                 || context.InputFilePaths.TryGetValue(assemblyName, out result))
+#endif
             {
                 return result;
             }

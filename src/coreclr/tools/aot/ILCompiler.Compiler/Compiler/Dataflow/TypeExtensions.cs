@@ -22,5 +22,12 @@ namespace ILCompiler.Dataflow
         {
             return index < method.Signature.Length && method.Signature[index].IsTypeOf(ns, name);
         }
+
+#if TRIMMER
+        public static bool IsSealed(this TypeDesc type)
+        {
+            return type.IsArray || (type is MetadataType mdType && mdType.IsSealed);
+        }
+#endif
     }
 }
