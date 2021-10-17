@@ -53,6 +53,10 @@ namespace ILTrim
                             throw new CommandLineException("Specified log strategy can't use logFile option");
                     }
                 }
+                else if (logFile != null)
+                {
+                    throw new CommandLineException("Log file can only be specified with logging strategy selection.");
+                }
 
                 int p = -1;
                 syntax.DefineOption("parallelism", ref p, requireValue: false, "Degree of parallelism");
