@@ -55,7 +55,7 @@ namespace ILTrim.DependencyAnalysis
             else if (_dependencyAnalyzer != null)
             {
                 PEMemoryBlock resourceDirectory = _module.PEReader.GetSectionData(_module.PEReader.PEHeaders.CorHeader.ResourcesDirectory.RelativeVirtualAddress);
-                BlobReader blobReader = resourceDirectory.GetReader((int)resource.Offset, resourceDirectory.Length - (int)resource.Offset);
+                BlobReader blobReader = resourceDirectory.GetReader((int)resource.Offset, _module.PEReader.PEHeaders.CorHeader.ResourcesDirectory.Size - (int)resource.Offset);
                 int length = (int)blobReader.ReadUInt32();
 
                 UnmanagedMemoryStream ms;
@@ -100,13 +100,14 @@ namespace ILTrim.DependencyAnalysis
             int length = (int)resourceReader.ReadUInt32();
 
             BlobBuilder resourceBuilder = writeContext.ManagedResourceBuilder;
-            uint rva = (uint)resourceBuilder.Count;
+            uint offset = (uint)resourceBuilder.Count;
+            resourceBuilder.WriteUInt32((uint)length);
             resourceBuilder.WriteBytes(resourceReader.ReadBytes(length));
             return writeContext.MetadataBuilder.AddManifestResource(
                 resource.Attributes,
                 builder.GetOrAddString(reader.GetString(resource.Name)),
                 writeContext.TokenMap.MapToken(resource.Implementation),
-                rva);
+                offset);
         }
 
         public override string ToString()
