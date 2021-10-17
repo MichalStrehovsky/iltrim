@@ -27,7 +27,14 @@ namespace ILTrim.DependencyAnalysis
             // We decided not to report parent as a dependency because we don't expect custom attributes to be needed outside of their parent references
 
             if (!customAttribute.Constructor.IsNil)
+            {
                 yield return new DependencyListEntry(factory.GetNodeForToken(_module, customAttribute.Constructor), "Custom attribute constructor");
+
+                if (_module.TryGetMethod(customAttribute.Constructor) is EcmaMethod ctorMethod)
+                {
+                    yield return new(factory.ConstructedType((EcmaType)ctorMethod.OwningType), "Reflection-activated attribute");
+                }
+            }
 
             // TODO: Parse custom attribute value and add dependencies from it
         }
