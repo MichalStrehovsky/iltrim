@@ -128,19 +128,6 @@ namespace ILTrim.DependencyAnalysis
                             field = null;
                         }
 
-                        if (opcode == ILOpcode.newobj && method is MethodDesc constructor)
-                        {
-                            TypeDesc owningTypeDefinition = constructor.OwningType.GetTypeDefinition();
-                            if (owningTypeDefinition is EcmaType ecmaOwningType)
-                            {
-                                _dependencies.Add(factory.ConstructedType(ecmaOwningType), "Newobj");
-                            }
-                            else
-                            {
-                                Debug.Assert(owningTypeDefinition is ArrayType);
-                            }
-                        }
-
                         if ((opcode == ILOpcode.callvirt || opcode == ILOpcode.ldvirtftn) &&
                             method != null && method.IsVirtual)
                         {

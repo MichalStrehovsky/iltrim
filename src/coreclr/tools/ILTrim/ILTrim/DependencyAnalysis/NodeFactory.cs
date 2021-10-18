@@ -20,16 +20,16 @@ namespace ILTrim.DependencyAnalysis
     public sealed class NodeFactory
     {
         IReadOnlySet<string> _trimAssemblies { get; }
-        bool _libraryTrimMode { get; }
+        public TrimmerSettings Settings { get; }
 
         public ILCompiler.Logger Logger { get; }
 
         public FlowAnnotations FlowAnnotations { get; }
 
-        public NodeFactory(IEnumerable<string> trimAssemblies, bool libraryTrimMode)
+        public NodeFactory(IEnumerable<string> trimAssemblies, TrimmerSettings settings)
         {
             _trimAssemblies = new HashSet<string>(trimAssemblies);
-            _libraryTrimMode = libraryTrimMode;
+            Settings = settings;
             Logger = new ILCompiler.Logger(Console.Out, isVerbose: false);
             FlowAnnotations = new FlowAnnotations(Logger, new ILProvider());
         }
@@ -68,7 +68,7 @@ namespace ILTrim.DependencyAnalysis
                 case HandleKind.PropertyDefinition:
                     return PropertyDefinition(module, (PropertyDefinitionHandle)handle);
                 case HandleKind.MethodImplementation:
-                    throw new NotImplementedException();
+                    return MethodImplementation(module, (MethodImplementationHandle)handle);
                 case HandleKind.ModuleReference:
                     return ModuleReference(module, (ModuleReferenceHandle)handle);
                 case HandleKind.TypeSpecification:
@@ -80,7 +80,7 @@ namespace ILTrim.DependencyAnalysis
                 case HandleKind.ExportedType:
                     throw new NotImplementedException();
                 case HandleKind.ManifestResource:
-                    throw new NotImplementedException();
+                    return ManifestResource(module, (ManifestResourceHandle)handle);
                 case HandleKind.GenericParameter:
                     return GenericParameter(module, (GenericParameterHandle)handle);
                 case HandleKind.MethodSpecification:
@@ -134,6 +134,14 @@ namespace ILTrim.DependencyAnalysis
         public TypeDefinitionNode TypeDefinition(EcmaModule module, TypeDefinitionHandle handle)
         {
             return _typeDefinitions.GetOrAdd(new HandleKey<TypeDefinitionHandle>(module, handle));
+        }
+
+        NodeCache<HandleKey<MethodImplementationHandle>, MethodImplementationNode> _methodImplementations
+            = new NodeCache<HandleKey<MethodImplementationHandle>, MethodImplementationNode>(key
+                => new MethodImplementationNode(key.Module, key.Handle));
+        public MethodImplementationNode MethodImplementation(EcmaModule module, MethodImplementationHandle handle)
+        {
+            return _methodImplementations.GetOrAdd(new HandleKey<MethodImplementationHandle>(module, handle));
         }
 
         NodeCache<HandleKey<FieldDefinitionHandle>, FieldDefinitionNode> _fieldDefinitions
@@ -264,6 +272,14 @@ namespace ILTrim.DependencyAnalysis
             return _moduleReferences.GetOrAdd(new HandleKey<ModuleReferenceHandle>(module, handle));
         }
 
+        NodeCache<HandleKey<ManifestResourceHandle>, ManifestResourceNode> _manifestResources
+           = new NodeCache<HandleKey<ManifestResourceHandle>, ManifestResourceNode>(key
+               => new ManifestResourceNode(key.Module, key.Handle));
+        public ManifestResourceNode ManifestResource(EcmaModule module, ManifestResourceHandle handle)
+        {
+            return _manifestResources.GetOrAdd(new HandleKey<ManifestResourceHandle>(module, handle));
+        }
+
         NodeCache<HandleKey<GenericParameterHandle>, GenericParameterNode> _genericParameters
            = new NodeCache<HandleKey<GenericParameterHandle>, GenericParameterNode>(key
                => new GenericParameterNode(key.Module, key.Handle));
@@ -287,7 +303,7 @@ namespace ILTrim.DependencyAnalysis
 
         public bool IsModuleTrimmedInLibraryMode()
         {
-            return _libraryTrimMode;
+            return Settings.LibraryMode;
         }
 
         private struct HandleKey<T> : IEquatable<HandleKey<T>> where T : struct, IEquatable<T>
@@ -313,23 +329,33 @@ namespace ILTrim.DependencyAnalysis
         private struct NodeCache<TKey, TValue>
         {
             private Func<TKey, TValue> _creator;
+#if SINGLE_THREADED
+            private Dictionary<TKey, TValue> _cache;
+#else
             private ConcurrentDictionary<TKey, TValue> _cache;
-
-            public NodeCache(Func<TKey, TValue> creator, IEqualityComparer<TKey> comparer)
-            {
-                _creator = creator;
-                _cache = new ConcurrentDictionary<TKey, TValue>(comparer);
-            }
+#endif
 
             public NodeCache(Func<TKey, TValue> creator)
             {
                 _creator = creator;
+#if SINGLE_THREADED
+                _cache = new Dictionary<TKey, TValue>();
+#else
                 _cache = new ConcurrentDictionary<TKey, TValue>();
+#endif
             }
 
             public TValue GetOrAdd(TKey key)
             {
+#if SINGLE_THREADED
+                if (_cache.TryGetValue(key, out var value))
+                    return value;
+
+                _cache[key] = value = _creator(key);
+                return value;
+#else
                 return _cache.GetOrAdd(key, _creator);
+#endif
             }
         }
     }

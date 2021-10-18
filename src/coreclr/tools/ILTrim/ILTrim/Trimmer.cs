@@ -27,14 +27,13 @@ namespace ILTrim
             IReadOnlyList<string> additionalTrimPaths,
             string outputDir,
             IReadOnlyList<string> referencePaths,
-            TrimmerSettings settings = null,
-            bool libraryTrimMode=false)
+            TrimmerSettings settings = null)
         {
             var context = new ILTrimTypeSystemContext();
             settings = settings ?? new TrimmerSettings();
 
             Dictionary<string, string> references = new();
-            foreach (var path in additionalTrimPaths.Concat(referencePaths))
+            foreach (var path in additionalTrimPaths.Concat(referencePaths ?? Enumerable.Empty<string>()))
             {
                 var simpleName = Path.GetFileNameWithoutExtension(path);
                 references.Add(simpleName, path);
@@ -50,7 +49,7 @@ namespace ILTrim
 
             var trimmedAssemblies = new List<string>(additionalTrimPaths.Select(p => Path.GetFileNameWithoutExtension(p)));
             trimmedAssemblies.Add(Path.GetFileNameWithoutExtension(inputPath));
-            var factory = new NodeFactory(trimmedAssemblies, libraryTrimMode);
+            var factory = new NodeFactory(trimmedAssemblies, settings);
 
             DependencyAnalyzerBase<NodeFactory> analyzer = settings.LogStrategy switch
             {
@@ -63,7 +62,7 @@ namespace ILTrim
 
             analyzer.ComputeDependencyRoutine += ComputeDependencyNodeDependencies;
 
-            if (!libraryTrimMode)
+            if (!settings.LibraryMode)
             {
                 MethodDefinitionHandle entrypointToken = (MethodDefinitionHandle)MetadataTokens.Handle(module.PEReader.PEHeaders.CorHeader.EntryPointTokenOrRelativeVirtualAddress);
 
@@ -74,13 +73,13 @@ namespace ILTrim
             {
                 int rootNumber = 1;
                 List<string> methodNames = new List<string>();
-                foreach (var methodH in module.MetadataReader.MethodDefinitions)
+                foreach (var methodHandle in module.MetadataReader.MethodDefinitions)
                 {
-                    var method = module.MetadataReader.GetMethodDefinition(methodH);
+                    var method = module.MetadataReader.GetMethodDefinition(methodHandle);
                     var type = module.MetadataReader.GetTypeDefinition(method.GetDeclaringType());
-                    if (!type.IsNested && method.Attributes.IsPublic())
+                    if (!type.IsNested && IsPublic(type.Attributes) && method.Attributes.IsPublic())
                     {
-                        analyzer.AddRoot(factory.MethodDefinition(module, methodH), $"LibraryMode_{rootNumber++}");
+                        analyzer.AddRoot(factory.MethodDefinition(module, methodHandle), $"LibraryMode_{rootNumber++}");
                     }
                 }
             }
@@ -114,11 +113,14 @@ namespace ILTrim
 
             void RunForEach<T>(IEnumerable<T> inputs, Action<T> action)
             {
+#if !SINGLE_THREADED
                 if (settings.MaxDegreeOfParallelism == 1)
+#endif
                 {
                     foreach (var input in inputs)
                         action(input);
                 }
+#if !SINGLE_THREADED
                 else
                 {
                     Parallel.ForEach(
@@ -126,7 +128,11 @@ namespace ILTrim
                         new() { MaxDegreeOfParallelism = settings.EffectiveDegreeOfParallelism },
                         action);
                 }
+#endif
             }
         }
+
+        private static bool IsPublic(TypeAttributes typeAttributes) =>
+            (typeAttributes & TypeAttributes.VisibilityMask) == TypeAttributes.Public;
     }
 }
