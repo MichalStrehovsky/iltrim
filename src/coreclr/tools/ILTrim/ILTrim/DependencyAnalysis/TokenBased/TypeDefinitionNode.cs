@@ -71,9 +71,9 @@ namespace ILTrim.DependencyAnalysis
                 yield return new(factory.MethodDefinition(_module, cctor.Handle), "Static constructor");
             }
 
-            if (typeDef.Attributes.HasFlag(TypeAttributes.SequentialLayout) || typeDef.Attributes.HasFlag(TypeAttributes.ExplicitLayout))
+            // Postpone marking instance fields on references types until the type is allocated.
+            if (type.IsValueType && (typeDef.Attributes.HasFlag(TypeAttributes.SequentialLayout) || typeDef.Attributes.HasFlag(TypeAttributes.ExplicitLayout)))
             {
-                // TODO: Postpone marking instance fields on reference types until the type is allocated (i.e. until we have a ConstructedTypeNode for it in the system).
                 foreach (var fieldHandle in typeDef.GetFields())
                 {
                     var fieldDef = _module.MetadataReader.GetFieldDefinition(fieldHandle);

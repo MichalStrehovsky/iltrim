@@ -154,6 +154,17 @@ namespace ILTrim.DependencyAnalysis
             {
                 yield return new(factory.ConstructedType((EcmaType)baseType), "Base type");
             }
+
+            if (_type.IsSequentialLayout || _type.IsExplicitLayout)
+            {
+                foreach (var field in _type.GetFields())
+                {
+                    if (!field.IsStatic)
+                    {
+                        yield return new(factory.FieldDefinition(_type.EcmaModule, ((EcmaField)field).Handle), "Instance field of a type with sequential or explicit layout");
+                    }
+                }
+            }
         }
 
         protected override string GetName(NodeFactory factory)
