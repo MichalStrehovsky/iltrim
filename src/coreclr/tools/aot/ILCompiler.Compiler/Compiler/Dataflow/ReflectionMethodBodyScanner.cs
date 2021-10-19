@@ -10,14 +10,22 @@ using System.Linq;
 
 using Internal.IL;
 using Internal.TypeSystem;
+using Internal.TypeSystem.Ecma;
 
 using BindingFlags = System.Reflection.BindingFlags;
+#if TRIMMER
+using NodeFactory = ILTrim.DependencyAnalysis.NodeFactory;
+using DependencyList = ILCompiler.DependencyAnalysisFramework.DependencyNodeCore<ILTrim.DependencyAnalysis.NodeFactory>.DependencyList;
+#else
 using NodeFactory = ILCompiler.DependencyAnalysis.NodeFactory;
 using DependencyList = ILCompiler.DependencyAnalysisFramework.DependencyNodeCore<ILCompiler.DependencyAnalysis.NodeFactory>.DependencyList;
+#endif
 using CustomAttributeValue = System.Reflection.Metadata.CustomAttributeValue<Internal.TypeSystem.TypeDesc>;
 using CustomAttributeTypedArgument = System.Reflection.Metadata.CustomAttributeTypedArgument<Internal.TypeSystem.TypeDesc>;
 using CustomAttributeNamedArgumentKind = System.Reflection.Metadata.CustomAttributeNamedArgumentKind;
+#if !TRIMMER
 using InteropTypes = Internal.TypeSystem.Interop.InteropTypes;
+#endif
 
 namespace ILCompiler.Dataflow
 {
@@ -70,7 +78,11 @@ namespace ILCompiler.Dataflow
 
         bool ShouldEnableAotPatternReporting(MethodDesc method)
         {
+#if TRIMMER
+            return false;
+#else
             return ShouldEnablePatternReporting(method, "RequiresDynamicCodeAttribute");
+#endif
         }
 
         private enum ScanningPurpose
@@ -1164,6 +1176,7 @@ namespace ILCompiler.Dataflow
                         }
                         break;
 
+#if !TRIMMER
                     //
                     // System.Enum
                     //
@@ -1254,6 +1267,7 @@ namespace ILCompiler.Dataflow
                             }
                         }
                         break;
+#endif
 
                     //
                     // System.Object
@@ -1308,13 +1322,17 @@ namespace ILCompiler.Dataflow
 
                                     Debug.Assert(staticType is MetadataType || staticType.IsArray);
                                     MetadataType closestMetadataType = staticType is MetadataType mdType ?
-                                        mdType : (MetadataType)_factory.TypeSystemContext.GetWellKnownType(WellKnownType.Array);
+                                        mdType : (MetadataType)staticType.Context.GetWellKnownType(WellKnownType.Array);
 
                                     var annotation = _flowAnnotations.GetTypeAnnotation(staticType);
 
                                     if (annotation != default)
                                     {
+#if TRIMMER
+                                        _dependencies.Add(_factory.ObjectGetTypeFlowDependencies((EcmaType)closestMetadataType.GetTypeDefinition()), "GetType called on this type");
+#else
                                         _dependencies.Add(_factory.ObjectGetTypeFlowDependencies(closestMetadataType), "GetType called on this type");
+#endif
                                     }
 
                                     reflectionContext.RecordHandledPattern();
@@ -1363,12 +1381,22 @@ namespace ILCompiler.Dataflow
                                     }
                                     else
                                     {
+#if TRIMMER
+                                        // TODO: include a potential type forwarder
+                                        // TODO: needs to handle non-definitions too
+                                        if (foundType.GetTypeDefinition() is EcmaType ecmaFoundType && _factory.IsModuleTrimmed(ecmaFoundType.EcmaModule))
+                                        {
+                                            _dependencies.Add(_factory.ConstructedType(ecmaFoundType), "Type.GetType");
+                                            _dependencies.Add(_factory.TypeDefinition(ecmaFoundType.EcmaModule, ecmaFoundType.Handle), "Type.GetType");
+                                        }
+#else
                                         // Also add module metadata in case this reference was through a type forward
                                         if (_factory.MetadataManager.CanGenerateMetadata(referenceModule.GetGlobalModuleType()))
                                             _dependencies.Add(_factory.ModuleMetadata(referenceModule), reflectionContext.MemberWithRequirements.ToString());
 
                                         reflectionContext.RecordRecognizedPattern(() => _dependencies.Add(_factory.MaximallyConstructableType(foundType), "Type.GetType reference"));
-                                        methodReturnValue = MergePointValue.MergeValues(methodReturnValue, new SystemTypeValue(foundType));
+#endif
+                                            methodReturnValue = MergePointValue.MergeValues(methodReturnValue, new SystemTypeValue(foundType));
                                     }
                                 }
                                 else if (typeNameValue == NullValue.Instance)
@@ -2110,10 +2138,14 @@ namespace ILCompiler.Dataflow
                                 if (typeHandleValue is RuntimeTypeHandleValue runtimeTypeHandleValue)
                                 {
                                     TypeDesc typeRepresented = runtimeTypeHandleValue.TypeRepresented;
+#if TRIMMER
+                                    // TODO: root cctor
+#else
                                     if (!typeRepresented.IsGenericDefinition && !typeRepresented.ContainsSignatureVariables(treatGenericParameterLikeSignatureVariable: true) && typeRepresented.HasStaticConstructor)
                                     {
                                         _dependencies.Add(_factory.CanonicalEntrypoint(typeRepresented.GetStaticConstructor()), "RunClassConstructor reference");
                                     }
+#endif
 
                                     reflectionContext.RecordHandledPattern();
                                 }
@@ -2325,6 +2357,7 @@ namespace ILCompiler.Dataflow
                 return true;
             }
 
+#if !TRIMMER
             if (nativeType == NativeTypeKind.Default)
             {
                 TypeSystemContext context = parameterType.Context;
@@ -2379,6 +2412,7 @@ namespace ILCompiler.Dataflow
                     return true;
                 }
             }
+#endif
 
             return false;
         }
@@ -2789,9 +2823,12 @@ namespace ILCompiler.Dataflow
                     }
                     else
                     {
+                        // TODO: trimmer: don't lose track of potential needed type forward
+#if !TRIMMER
                         // Also add module metadata in case this reference was through a type forward
                         if (_factory.MetadataManager.CanGenerateMetadata(referenceModule.GetGlobalModuleType()))
                             _dependencies.Add(_factory.ModuleMetadata(referenceModule), reflectionContext.MemberWithRequirements.ToString());
+#endif
 
                         MarkType(ref reflectionContext, foundType);
                         MarkTypeForDynamicallyAccessedMembers(ref reflectionContext, foundType, requiredMemberTypes);
@@ -2901,7 +2938,16 @@ namespace ILCompiler.Dataflow
 
         void MarkType(ref ReflectionPatternContext reflectionContext, TypeDesc type)
         {
+#if TRIMMER
+            // TODO: needs to handle non-definitions too
+            if (type.GetTypeDefinition() is EcmaType ecmaType && _factory.IsModuleTrimmed(ecmaType.EcmaModule))
+            {
+                _dependencies.Add(_factory.ConstructedType(ecmaType), reflectionContext.MemberWithRequirements.ToString());
+                _dependencies.Add(_factory.TypeDefinition(ecmaType.EcmaModule, ecmaType.Handle), reflectionContext.MemberWithRequirements.ToString());
+            }
+#else
             RootingHelpers.TryGetDependenciesForReflectedType(ref _dependencies, _factory, type, reflectionContext.MemberWithRequirements.ToString());
+#endif
             reflectionContext.RecordHandledPattern();
         }
 
@@ -2962,7 +3008,15 @@ namespace ILCompiler.Dataflow
                 WarnOnReflectionAccess(ref reflectionContext, method);
             }
 
+#if TRIMMER
+            // TODO: needs to handle non-definitions too
+            if (method.GetTypicalMethodDefinition() is EcmaMethod ecmaMethod && _factory.IsModuleTrimmed(ecmaMethod.Module))
+            {
+                _dependencies.Add(_factory.MethodDefinition(ecmaMethod.Module, ecmaMethod.Handle), reflectionContext.MemberWithRequirements.ToString());
+            }
+#else
             RootingHelpers.TryGetDependenciesForReflectedMethod(ref _dependencies, _factory, method, reflectionContext.MemberWithRequirements.ToString());
+#endif
             reflectionContext.RecordHandledPattern();
         }
 
@@ -2973,7 +3027,15 @@ namespace ILCompiler.Dataflow
                 WarnOnReflectionAccess(ref reflectionContext, field);
             }
 
+#if TRIMMER
+            // TODO: needs to handle non-definitions too
+            if (field.GetTypicalFieldDefinition() is EcmaField ecmaField && _factory.IsModuleTrimmed(ecmaField.Module))
+            {
+                _dependencies.Add(_factory.FieldDefinition(ecmaField.Module, ecmaField.Handle), reflectionContext.MemberWithRequirements.ToString());
+            }
+#else
             RootingHelpers.TryGetDependenciesForReflectedField(ref _dependencies, _factory, field, reflectionContext.MemberWithRequirements.ToString());
+#endif
             reflectionContext.RecordHandledPattern();
         }
 
