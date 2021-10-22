@@ -143,6 +143,13 @@ namespace ILTrim.DependencyAnalysis
             if (!eventHandle.IsNil)
                 builder.AddEventMap(Handle, eventHandle);
 
+            var outputHandleTypeAttributes = typeDef.Attributes;
+            var ecmaType = (EcmaType)_module.GetObject(Handle);
+            if (!writeContext.Factory.ConstructedType(ecmaType).Marked)
+            {
+                outputHandleTypeAttributes |= TypeAttributes.Abstract;
+            }
+
             TypeDefinitionHandle outputHandle = builder.AddTypeDefinition(typeDef.Attributes,
                 builder.GetOrAddString(reader.GetString(typeDef.Namespace)),
                 builder.GetOrAddString(reader.GetString(typeDef.Name)),
